@@ -1,13 +1,33 @@
-import { Text, 
+import React, {useState, useRef} from 'react'
+
+import { 
   View, 
   StyleSheet,
   SafeAreaView,
   StatusBar,
   Pressable,
   Linking,
-  TextInput, } from "react-native";
+  Text
+   } from "react-native";
+import {
+  TextInput,
+  ProfileIconContainer,
+  ProfileImage
+  
+
+} from './styled';
+
+const ProfileIcon = () => {
+  return (
+    <ProfileIconContainer>
+      <ProfileImage source={{ uri: 'https://via.placeholder.com/100' }} />
+    </ProfileIconContainer>
+  );
+};
+
 
 export default function Index() {
+
   
   return (
     <View
@@ -18,9 +38,13 @@ export default function Index() {
       }}
     >
       <TextInput>
-
+        
       </TextInput>
+      
       <Text>Hello World</Text>
+      <ProfileIcon />
+
     </View>
+    
   );
 }
