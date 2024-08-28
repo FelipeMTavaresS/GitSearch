@@ -2,10 +2,17 @@
 import styled from 'styled-components/native'
 
 
-export const TextInput = styled.TextInput`
-  background-color: black;
-  padding: 10px 20px;
 
+
+export const TextInput = styled.TextInput`
+  background-color: gray;
+  color: black;
+  padding: 10px 20%;
+  border-radius: 15px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  position: relative;
+  z-index: 1000;
 `;
 export const ProfileIconContainer = styled.View`
   width: 100px;
