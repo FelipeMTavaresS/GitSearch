@@ -1,17 +1,21 @@
-import styled from 'styled-components/native';
-
-
+import styled from "styled-components/native";
 
 export const BoxContainer = styled.View`
   width: 320px;
   height: auto;
   background-color: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   border-radius: 10px;
   justify-content: center;
   align-items: center;
-  margin-bottom: 50px; /* Adiciona um espaçamento na parte inferior */
+  margin-bottom: 50px;
+  shadow-color: #000;
+  shadow-offset: 0px 1px;
+  shadow-opacity: 0.2;
+  shadow-radius: 1.41px;
+
+  elevation: 2;
 `;
+
 
 export const BoxContainerStats = styled.View`
   width: 320px;
@@ -20,17 +24,44 @@ export const BoxContainerStats = styled.View`
   align-items: center;
   margin-bottom: 50px; /* Adiciona um espaçamento na parte inferior */
 `;
+export const recentUsersContainer = styled.View`
+      marginVertical: 20,
+      width: '100%',
+      paddingHorizontal: 20,
+`;
+
+export const recentUsersTitle = styled.View`
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+`;
+
+export const recentUserItem = styled.View`
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+`;
 
 export const BoxContainerRepos = styled.View`
   width: 320px;
   height: 300px;
   background-color: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   border-radius: 10px;
   margin-bottom: 50px;
   overflow: hidden;
   padding: 10px;
   z-index: -1;
+
+
+  /* Sombras para iOS */
+  shadow-color: #000;
+  shadow-offset: 0px 1px;
+  shadow-opacity: 0.2;
+  shadow-radius: 1.41px;
+
+  /* Sombras para Android */
+  elevation: 2;
 `;
 
 export const ScrollRepos = styled.ScrollView`
@@ -38,8 +69,6 @@ export const ScrollRepos = styled.ScrollView`
   width: 100%;
   height: 100%;
 `;
-
-
 
 export const ProfileIconContainer = styled.View`
   width: 120px;
@@ -60,8 +89,8 @@ export const ProfileImage = styled.Image`
 
 export const TextTitle = styled.Text`
   color: #333;
-  font-size: 48px; 
-  font-weight: bold; 
+  font-size: 48px;
+  font-weight: bold;
   text-align: center;
 `;
 
@@ -89,7 +118,7 @@ export const ViewSpaceRepos = styled.View`
 export const ProfileText = styled.View`
   align-items: center;
   bottom: 40px;
-`
+`;
 
 export const H1Text = styled.Text`
   font-size: 24px;
@@ -112,7 +141,8 @@ export const H2TextBold = styled.Text`
 export const H2TextRepos = styled.Text`
   font-size: 18px;
   font-weight: normal;
-  color: #333;
+  color: #0000EE;
+  text-decoration-line: underline;
   margin-top: 10px;
   text-align: left;
 `;
@@ -124,20 +154,16 @@ export const DataText = styled.Text`
   margin-top: 10px;
   margin-right: 5px;
   text-align: right;
-
-
-`
+`;
 
 export const ReposView = styled.View`
   padding-top: 10px;
   padding-left: 10px;
-
 `;
 
 export const TextGray = styled.Text`
   color: #808080;
-
-`
+`;
 
 export const HorizontalLine = styled.View`
   height: 1px; /* Altura da linha (espessura) */
@@ -156,8 +182,8 @@ export const InputContainer = styled.View`
   border-radius: 22px;
   border: 1px solid #ccc;
   background-color: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); 
-  elevation: 1; 
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  elevation: 1;
   margin-top: 20px;
   margin-bottom: 70px;
   padding-left: 15px;
@@ -167,6 +193,8 @@ export const StyledTextInput = styled.TextInput`
   flex: 1;
   font-size: 16px;
   color: #808080;
+  border-width: 0; /* Remove a borda */
+  border-color: transparent;
 `;
 
 export const SearchButton = styled.TouchableOpacity`
@@ -213,5 +241,22 @@ export const RepoLink = styled.Text`
 
 export const ViewCenter = styled.View`
   align-items: center;
+`;
 
-`
+export const SearchResultsContainer = styled.View`
+  margin-vertical: 20px;
+  width: 100%;
+  padding-horizontal: 20px;
+`;
+
+export const SearchResultAvatar = styled.Image`
+  width: 80px;
+  height: 80px;
+  border-radius: 40px;
+  margin-right: 10px;
+`;
+
+export const Backgroud = styled.View`
+  background-color: #eff2f5;
+
+`;

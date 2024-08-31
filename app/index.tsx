@@ -1,113 +1,18 @@
 import React, { useState } from "react";
-import { View, Text, Image, StyleSheet, FlatList, TouchableOpacity, Linking } from "react-native";
-import {
-  ProfileIconContainer,
-  ProfileImage,
-  BoxContainer,
-  TextSubTitle,
-  BoxContainerRepos,
-  ScrollRepos,
-  H2TextBold,
-  ReposView,
-  TextGray,
-  HorizontalLine,
-  H2TextRepos,
-  ViewSpaceRepos,
-  DataText
-} from "./styled";
-import { ScrollView } from "react-native-gesture-handler";
-import Modal from "@/app/components/modal";
+import { View, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import RecentUsersMenu from "./components/RecentUsersMenu";
+import RepositoryList from "./components/RepositoryList";
+import { Backgroud, BoxContainer, BoxContainerRepos, ProfileIconContainer, ProfileImage, ScrollRepos, ViewCenter } from "./styled";
+import SearchResultsMenu from "./components/SearchResultsMenu";
+import { fetchUserData } from "./components/utils";
 import SearchBarComponent from "./components/searchbarcomponent";
 import UserData from "./components/userdata";
 import UserStats from "./components/userstats";
+import Modal from "./components/modal";
+import { RecentUser, Repository } from "./components/types";
 
 const PLACEHOLDER_IMAGE = "https://img.icons8.com/pulsar-color/192/test-account.png";
 const ENDPOINT = "https://api.github.com/users/";
-
-interface Repository {
-  name: string;
-  description: string | null;
-  language: string | null;
-  created_at: string;
-  pushed_at: string;
-  html_url: string;
-}
-
-interface RecentUser {
-  id: string;
-  userName: string;
-  avatarUrl: string;
-  name: string;
-  login: string;
-  location: string;
-}
-
-const formatNumber = (value: number): string => {
-  if (value >= 1_000_000) return (value / 1_000_000).toFixed(1).replace(".0", "") + "M";
-  if (value >= 1_000) return (value / 1_000).toFixed(1).replace(".0", "") + "k";
-  return value.toString();
-};
-
-const formatTextDesc = (value: string): string => {
-  if (!value) return "Não possui descrição";
-
-  const maxLength = 20;
-  const maxLineLength = 12;
-  const truncatedText = value.length > maxLength ? value.slice(0, maxLength) + '...' : value;
-  return wrapText(truncatedText, maxLineLength);
-};
-
-const formatTextTitle = (value: string): string => {
-  if (!value) return "Sem título";
-
-  const maxLineLength = 15;
-  return wrapText(value, maxLineLength);
-};
-
-const wrapText = (text: string, maxLineLength: number): string => {
-  const lines: string[] = [];
-  let currentLine = '';
-
-  for (const char of text) {
-    currentLine += char;
-    if (currentLine.length >= maxLineLength) {
-      lines.push(currentLine.trim());
-      currentLine = '';
-    }
-  }
-
-  if (currentLine.length) lines.push(currentLine.trim());
-  return lines.join('\n');
-};
-
-const fetchUserData = async (url: string) => {
-  const response = await fetch(url);
-  return response.json();
-};
-
-const RecentUsersMenu: React.FC<{ recentUsers: RecentUser[], onUserClick: (user: RecentUser) => void }> = ({ recentUsers, onUserClick }) => {
-  return (
-    <View style={styles.recentUsersContainer}>
-      <Text style={styles.recentUsersTitle}>Usuários Recentes</Text>
-      <FlatList
-        data={recentUsers}
-        keyExtractor={(item) => item.userName + item.id}
-        renderItem={({ item }) => (
-          <View style={styles.recentUserItem}>
-            <TouchableOpacity onPress={() => onUserClick(item)}>
-              <Image source={{ uri: item.avatarUrl }} style={styles.recentUserAvatar} />
-            </TouchableOpacity>
-            <View>
-              <Text>{item.name}</Text>
-              <Text>{item.login}</Text>
-              <Text>{item.location}</Text>
-            </View>
-          </View>
-        )}
-      />
-    </View>
-  );
-};
 
 const Home: React.FC = () => {
   const [userName, setUserName] = useState<string>("");
@@ -124,6 +29,7 @@ const Home: React.FC = () => {
   const [modalMessage, setModalMessage] = useState<string>("");
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
+  const [searchResult, setSearchResult] = useState<RecentUser | null>(null);
 
   const handleGetUserData = async (url: string) => {
     if (!userName) {
@@ -133,6 +39,7 @@ const Home: React.FC = () => {
     }
     try {
       const data = await fetchUserData(url);
+
       const {
         login,
         name,
@@ -208,14 +115,17 @@ const Home: React.FC = () => {
   const handleCloseModal = () => setModalVisible(false);
 
   return (
+    <Backgroud>
     <ScrollView>
-      <View style={styles.container}>
+      <ViewCenter>
         <SearchBarComponent
           userName={userName}
           setUserName={setUserName}
           onSearch={handleSearch}
         />
-        <RecentUsersMenu recentUsers={recentUsers} onUserClick={handleRecentUserClick} />
+        {searchResult && (
+          <SearchResultsMenu user={searchResult} onUserClick={handleSearch} />
+        )}
         <BoxContainer>
           <TouchableOpacity>
             <ProfileIconContainer>
@@ -233,85 +143,21 @@ const Home: React.FC = () => {
             publicRepos={publicRepos}
           />
         </BoxContainer>
-        <BoxContainerRepos>
-            <ScrollRepos>
-            <ReposView>
-              <H2TextBold>Repositórios</H2TextBold>
-              <TextGray>
-                {publicRepos ? formatNumber(publicRepos) : 0} Repositórios
-              </TextGray>
-              <HorizontalLine />
-              {repositories.map((repo, index) => (
-                <View key={index}>
-                  <ViewSpaceRepos>
-                    <TouchableOpacity onPress={() => Linking.openURL(repo.html_url)}>
-                      <H2TextRepos style={styles.repoLink}>{formatTextTitle(repo.name)}</H2TextRepos>
-                    </TouchableOpacity>
-                    <DataText>
-                      Criado em: {'\n'} {new Date(repo.created_at).toLocaleDateString()}
-                    </DataText>
-                  </ViewSpaceRepos>
-                  <ViewSpaceRepos>
-                    <TextSubTitle>
-                      {repo.description
-                        ? formatTextDesc(repo.description)
-                        : "Sem descrição"}
-                    </TextSubTitle>
-                    <TextSubTitle>
-                      {repo.language
-                        ? formatTextDesc(repo.language)
-                        : "Sem linguagem definida"}
-                    </TextSubTitle>
-                    <TextSubTitle>
-                      Último push: {new Date(repo.pushed_at).toLocaleDateString()}
-                    </TextSubTitle>
-                  </ViewSpaceRepos>
-                  <HorizontalLine />
-                </View>
-              ))}
-            </ReposView>
-          </ScrollRepos>
-        </BoxContainerRepos>
-      </View>
+        <RepositoryList repositories={repositories} publicRepos={publicRepos} />
+        <ScrollView nestedScrollEnabled={true}>
+        <RecentUsersMenu recentUsers={recentUsers} onUserClick={handleRecentUserClick} />
+        </ScrollView>
+      </ViewCenter>
+      
       <Modal
         visible={modalVisible}
         onClose={handleCloseModal}
         message={modalMessage}
       />
     </ScrollView>
+    </Backgroud>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-  },
-  recentUsersContainer: {
-    marginVertical: 20,
-    width: '100%',
-    paddingHorizontal: 20,
-  },
-  recentUsersTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  recentUserItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  recentUserAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-  },
-  repoLink: {
-    color: 'blue',
-    textDecorationLine: 'underline',
-  },
-});
 
 export default Home;
