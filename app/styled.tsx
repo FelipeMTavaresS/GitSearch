@@ -1,19 +1,6 @@
 import styled from 'styled-components/native';
 
-export const InputContainer = styled.View`
-  flex-direction: row;
-  align-items: center;
-  height: 45px;
-  width: 80%;
-  border-radius: 22px;
-  border: 1px solid #ccc;
-  background-color: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); 
-  elevation: 1; 
-  margin-top: 20px;
-  margin-bottom: 70px;
-  padding-left: 15px;
-`;
+
 
 export const BoxContainer = styled.View`
   width: 320px;
@@ -21,6 +8,14 @@ export const BoxContainer = styled.View`
   background-color: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   border-radius: 10px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 50px; /* Adiciona um espaçamento na parte inferior */
+`;
+
+export const BoxContainerStats = styled.View`
+  width: 320px;
+  height: auto;
   justify-content: center;
   align-items: center;
   margin-bottom: 50px; /* Adiciona um espaçamento na parte inferior */
@@ -44,18 +39,7 @@ export const ScrollRepos = styled.ScrollView`
   height: 100%;
 `;
 
-export const TextInput = styled.TextInput`
-  flex: 1;
-  font-size: 16px;
-  color: #808080;
-`;
 
-export const SearchButton = styled.TouchableOpacity`
-  padding: 10px;
-  margin-right: 10px; /* Espaço à direita para o botão */
-  justify-content: center;
-  align-items: center;
-`;
 
 export const ProfileIconContainer = styled.View`
   width: 120px;
@@ -88,8 +72,8 @@ export const TextSubTitle = styled.Text`
 `;
 
 export const ViewSpace = styled.View`
-  flex-direction: row; /* Coloca os subtítulos em linha */
-  justify-content: space-around; /* Espaça os subtítulos uniformemente */
+  flex-direction: row;
+  justify-content: space-around;
   align-items: center;
   width: 100%;
   bottom: 30px;
@@ -130,6 +114,7 @@ export const H2TextRepos = styled.Text`
   font-weight: normal;
   color: #333;
   margin-top: 10px;
+  text-align: left;
 `;
 
 export const DataText = styled.Text`
@@ -138,6 +123,8 @@ export const DataText = styled.Text`
   color: #333;
   margin-top: 10px;
   margin-right: 5px;
+  text-align: right;
+
 
 `
 
@@ -161,3 +148,30 @@ export const HorizontalLine = styled.View`
   margin-right: 5px;
 `;
 
+export const InputContainer = styled.View`
+  flex-direction: row;
+  align-items: center;
+  height: 45px;
+  width: 80%;
+  border-radius: 22px;
+  border: 1px solid #ccc;
+  background-color: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); 
+  elevation: 1; 
+  margin-top: 20px;
+  margin-bottom: 70px;
+  padding-left: 15px;
+`;
+
+export const StyledTextInput = styled.TextInput`
+  flex: 1;
+  font-size: 16px;
+  color: #808080;
+`;
+
+export const SearchButton = styled.TouchableOpacity`
+  padding: 10px;
+  margin-right: 10px;
+  justify-content: center;
+  align-items: center;
+`;
