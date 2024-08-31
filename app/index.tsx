@@ -135,7 +135,7 @@ const RecentUserHome: React.FC = () => {
         <SearchBarComponent userName={userName} setUserName={setUserName} onSearch={handleSearch} />
         <BoxContainer>
           <RecentUsersContainer>
-            <RecentUsersTitle>Usuários Recentes</RecentUsersTitle>
+            <RecentUsersTitle>Usuários Recentes.</RecentUsersTitle>
             <FlatList
               data={recentUsers}
               keyExtractor={(item) => item.userName + item.id}
