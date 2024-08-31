@@ -175,3 +175,43 @@ export const SearchButton = styled.TouchableOpacity`
   justify-content: center;
   align-items: center;
 `;
+
+export const Container = styled.View`
+  flex: 1;
+  align-items: center;
+`;
+
+export const RecentUsersContainer = styled.View`
+  margin-vertical: 20px;
+  width: 100%;
+  padding-horizontal: 20px;
+`;
+
+export const RecentUsersTitle = styled.Text`
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 10px;
+`;
+
+export const RecentUserItem = styled.View`
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 10px;
+`;
+
+export const RecentUserAvatar = styled.Image`
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  margin-right: 10px;
+`;
+
+export const RepoLink = styled.Text`
+  color: blue;
+  text-decoration: underline;
+`;
+
+export const ViewCenter = styled.View`
+  align-items: center;
+
+`
