@@ -1,8 +1,15 @@
-import React, { useState } from "react";
-import { View, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, StyleSheet, TouchableOpacity, FlatList, ListRenderItem } from "react-native";
 import RecentUsersMenu from "./components/RecentUsersMenu";
 import RepositoryList from "./components/RepositoryList";
-import { Backgroud, BoxContainer, BoxContainerRepos, ProfileIconContainer, ProfileImage, ScrollRepos, ViewCenter } from "./styled";
+import {
+  Backgroud,
+  BoxContainer,
+  BoxContainerRepos,
+  ProfileIconContainer,
+  ProfileImage,
+  ViewCenter,
+} from "./styled";
 import SearchResultsMenu from "./components/SearchResultsMenu";
 import { fetchUserData } from "./components/utils";
 import SearchBarComponent from "./components/searchbarcomponent";
@@ -11,7 +18,8 @@ import UserStats from "./components/userstats";
 import Modal from "./components/modal";
 import { RecentUser, Repository } from "./components/types";
 
-const PLACEHOLDER_IMAGE = "https://img.icons8.com/pulsar-color/192/test-account.png";
+const PLACEHOLDER_IMAGE =
+  "https://img.icons8.com/pulsar-color/192/test-account.png";
 const ENDPOINT = "https://api.github.com/users/";
 
 const Home: React.FC = () => {
@@ -31,23 +39,26 @@ const Home: React.FC = () => {
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [searchResult, setSearchResult] = useState<RecentUser | null>(null);
 
-  const handleGetUserData = async (url: string) => {
+  const handleGetUserData = async (userName: string) => {
     if (!userName) {
       setModalMessage("Por favor, insira um nome de usuário.");
       setModalVisible(true);
       return;
     }
     try {
-      const data = await fetchUserData(url);
-
+      const response = await fetch(`${ENDPOINT}${userName}`);
+      if (!response.ok) {
+        setModalMessage("Erro ao buscar os dados do usuário.");
+        setModalVisible(true);
+        return;
+      }
+      const data = await response.json();
       const {
         login,
         name,
         avatar_url: avatarUrl,
-        bio,
         public_repos: publicRepos,
         followers,
-        following,
         location = "Localização não disponível",
         id,
       } = data;
@@ -55,10 +66,8 @@ const Home: React.FC = () => {
       setLogin(login);
       setName(name);
       setAvatarUrl(avatarUrl);
-      setBio(bio);
       setPublicRepos(publicRepos);
       setFollowers(followers);
-      setFollowing(following);
       setLocation(location);
       setId(id);
 
@@ -77,7 +86,7 @@ const Home: React.FC = () => {
     }
   };
 
-  const handleGetUserRepositoryData = async (url: string) => {
+  const handleGetUserRepositoryData = async (userName: string) => {
     if (!userName) {
       setModalMessage("Por favor, insira um nome de usuário.");
       setModalVisible(true);
@@ -85,7 +94,13 @@ const Home: React.FC = () => {
     }
 
     try {
-      const data = await fetchUserData(url);
+      const response = await fetch(`${ENDPOINT}${userName}/repos`);
+      if (!response.ok) {
+        setModalMessage("Erro ao buscar os dados do usuário.");
+        setModalVisible(true);
+        return;
+      }
+      const data = await response.json();
       const repos = data.map((repo: any) => ({
         name: repo.name,
         description: repo.description,
@@ -103,61 +118,107 @@ const Home: React.FC = () => {
   };
 
   const handleSearch = async () => {
-    await Promise.all([handleGetUserData(`${ENDPOINT}${userName}`), handleGetUserRepositoryData(`${ENDPOINT}${userName}/repos`)]);
+    await Promise.all([handleGetUserData(userName), handleGetUserRepositoryData(userName)]);
   };
 
   const handleRecentUserClick = async (user: RecentUser) => {
     setUserName(user.userName);
-    await handleGetUserData(`${ENDPOINT}${user.userName}`);
-    await handleGetUserRepositoryData(`${ENDPOINT}${user.userName}/repos`);
+    await handleGetUserData(user.userName);
+    await handleGetUserRepositoryData(user.userName);
   };
 
   const handleCloseModal = () => setModalVisible(false);
 
-  return (
-    <Backgroud>
-    <ScrollView>
-      <ViewCenter>
-        <SearchBarComponent
-          userName={userName}
-          setUserName={setUserName}
-          onSearch={handleSearch}
-        />
-        {searchResult && (
-          <SearchResultsMenu user={searchResult} onUserClick={handleSearch} />
-        )}
-        <BoxContainer>
-          <TouchableOpacity>
-            <ProfileIconContainer>
-              <ProfileImage source={{ uri: avatarUrl }} />
-            </ProfileIconContainer>
-          </TouchableOpacity>
-          <UserData
-            userName={name}
-            userLogin={login}
-            location={location}
-            id={id}
+  useEffect(() => {
+    const defaultUserName = "FelipeMTavaresS";
+    setUserName(defaultUserName);
+    handleGetUserData(defaultUserName);
+    handleGetUserRepositoryData(defaultUserName);
+  }, []);
+
+
+  const renderItem: ListRenderItem<any> = ({ item }) => {
+    switch (item.type) {
+      case 'searchBar':
+        return (
+          <ViewCenter>
+          <SearchBarComponent
+            userName={userName}
+            setUserName={setUserName}
+            onSearch={handleSearch}
           />
-          <UserStats
-            followers={followers}
+          </ViewCenter>
+        );
+      case 'searchResult':
+        return searchResult ? (
+          <SearchResultsMenu user={searchResult} onUserClick={handleSearch} />
+        ) : null;
+      case 'profile':
+        return (
+          <ViewCenter>
+          <BoxContainer>
+            <TouchableOpacity>
+              <ProfileIconContainer>
+                <ProfileImage source={{ uri: avatarUrl }} />
+              </ProfileIconContainer>
+            </TouchableOpacity>
+            <UserData
+              userName={name}
+              userLogin={login}
+              location={location}
+              id={id}
+            />
+            <UserStats followers={followers} publicRepos={publicRepos} />
+          </BoxContainer>
+          </ViewCenter>
+        );
+      case 'repositoryList':
+        return (
+          <ViewCenter>
+          <RepositoryList
+            repositories={repositories}
             publicRepos={publicRepos}
           />
-        </BoxContainer>
-        <RepositoryList repositories={repositories} publicRepos={publicRepos} />
-        <ScrollView nestedScrollEnabled={true}>
-        <RecentUsersMenu recentUsers={recentUsers} onUserClick={handleRecentUserClick} />
-        </ScrollView>
       </ViewCenter>
-      
-      <Modal
-        visible={modalVisible}
-        onClose={handleCloseModal}
-        message={modalMessage}
+        );
+      case 'recentUsers':
+        return (
+          <ViewCenter>
+          <RecentUsersMenu
+            recentUsers={recentUsers}
+            onUserClick={handleRecentUserClick}
+          />
+          </ViewCenter>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const data = [
+    { type: 'searchBar' },
+    { type: 'searchResult' },
+    { type: 'profile' },
+    { type: 'repositoryList' },
+    { type: 'recentUsers' },
+  ];
+
+  return (
+    <Backgroud>
+      <FlatList
+        data={data}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.type}
+        ListFooterComponent={
+          <Modal
+            visible={modalVisible}
+            onClose={handleCloseModal}
+            message={modalMessage}
+          />
+        }
       />
-    </ScrollView>
     </Backgroud>
   );
 };
-
 
 export default Home;

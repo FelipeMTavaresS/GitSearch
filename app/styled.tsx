@@ -2,7 +2,7 @@ import styled from "styled-components/native";
 
 export const BoxContainer = styled.View`
   width: 320px;
-  height: auto;
+  max-height: 400px;
   background-color: #fff;
   border-radius: 10px;
   justify-content: center;
@@ -12,6 +12,7 @@ export const BoxContainer = styled.View`
   shadow-offset: 0px 1px;
   shadow-opacity: 0.2;
   shadow-radius: 1.41px;
+  padding: 15px;
 
   elevation: 2;
 `;
