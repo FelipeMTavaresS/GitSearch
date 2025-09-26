@@ -1,73 +1,47 @@
-import React from "react";
-import { View, TouchableOpacity, Linking, ScrollView } from "react-native";
-import { formatNumber, formatTextDesc, formatTextTitle } from "./utils";
-import { Repository } from "./types";
-import {
-  BoxContainer,
-  BoxContainerRepos,
-  DataText,
-  H2TextBold,
-  H2TextRepos,
-  HorizontalLine,
-  ReposView,
-  TextGray,
-  TextSubTitle,
-  ViewCenter,
-  ViewSpaceRepos,
-} from "../styled";
+import React from 'react';
+import { FlatList } from 'react-native';
+import { formatNumber } from './utils';
+import { Repository } from './types';
+import styled from 'styled-components/native';
+import RepositoryCard from './RepositoryCard';
+
+const Container = styled.View`
+  width: 100%;
+`;
+const HeaderRow = styled.View`
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: ${({theme}) => theme.spacing.md}px;
+`;
+const Title = styled.Text`
+  color: ${({theme}) => theme.colors.textPrimary};
+  font-size: ${({theme}) => theme.font.size.xl}px;
+  font-weight: ${({theme}) => theme.font.weight.bold};
+`;
+const Count = styled.Text`
+  color: ${({theme}) => theme.colors.textSecondary};
+`;
 
 interface RepositoryListProps {
   repositories: Repository[];
   publicRepos: number;
 }
 
-const RepositoryList: React.FC<RepositoryListProps> = ({
-  repositories,
-  publicRepos,
-}) => {
+const RepositoryList: React.FC<RepositoryListProps> = ({ repositories, publicRepos }) => {
   return (
-      <BoxContainer>
-        <ReposView>
-          <H2TextBold>Repositórios</H2TextBold>
-            <TextGray>
-              {publicRepos ? formatNumber(publicRepos) : 0} Repositórios
-            </TextGray>
-            <HorizontalLine />
-            <ScrollView nestedScrollEnabled={true}>
-            {repositories.map((repo, index) => (
-              <View key={index}>
-                <ViewSpaceRepos>
-                  <TouchableOpacity
-                    onPress={() => Linking.openURL(repo.html_url)}
-                  >
-                    <H2TextRepos>{formatTextTitle(repo.name)}</H2TextRepos>
-                  </TouchableOpacity>
-                  <DataText>
-                    Criado em: {"\n"}{" "}
-                    {new Date(repo.created_at).toLocaleDateString()}
-                  </DataText>
-                </ViewSpaceRepos>
-                <ViewSpaceRepos>
-                  <TextSubTitle>
-                    {repo.description
-                      ? formatTextDesc(repo.description)
-                      : "Sem descrição"}
-                  </TextSubTitle>
-                  <TextSubTitle>
-                    {repo.language
-                      ? formatTextDesc(repo.language)
-                      : "Sem linguagem definida"}
-                  </TextSubTitle>
-                  <TextSubTitle>
-                    Último push: {new Date(repo.pushed_at).toLocaleDateString()}
-                  </TextSubTitle>
-                </ViewSpaceRepos>
-                <HorizontalLine />
-              </View>
-            ))}
-          </ScrollView>
-        </ReposView>
-      </BoxContainer>
+    <Container>
+      <HeaderRow>
+        <Title>Repositórios</Title>
+        <Count>{publicRepos ? formatNumber(publicRepos) : 0}</Count>
+      </HeaderRow>
+      <FlatList
+        data={repositories}
+        keyExtractor={(r) => r.html_url}
+        renderItem={({ item }) => <RepositoryCard repo={item} />}
+        scrollEnabled={false}
+      />
+    </Container>
   );
 };
 

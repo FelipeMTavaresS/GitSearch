@@ -1,28 +1,47 @@
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, TouchableOpacity, FlatList, ListRenderItem } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { TouchableOpacity, FlatList, ListRenderItem, ActivityIndicator, View, useWindowDimensions, Animated, Platform } from "react-native";
+import { ThemeProviderCustom, useAppTheme } from './themeContext';
 import RecentUsersMenu from "./components/RecentUsersMenu";
 import RepositoryList from "./components/RepositoryList";
 import {
   Backgroud,
   BoxContainer,
-  BoxContainerRepos,
   ProfileIconContainer,
   ProfileImage,
   ViewCenter,
+  ScreenWrapper,
+  Section,
+  ContentWidth,
+  TopBar,
+  ThemeToggleBtn,
+  ThemeToggleText,
+  TopBarRow,
+  TopBarLeft,
+  TopBarTitle,
 } from "./styled";
 import SearchResultsMenu from "./components/SearchResultsMenu";
-import { fetchUserData } from "./components/utils";
+
 import SearchBarComponent from "./components/searchbarcomponent";
+import { Image } from 'react-native';
 import UserData from "./components/userdata";
 import UserStats from "./components/userstats";
 import Modal from "./components/modal";
 import { RecentUser, Repository } from "./components/types";
+import { darkTheme } from './theme';
+import { ProfileSkeleton, RepoListSkeleton } from './components/Skeleton';
 
 const PLACEHOLDER_IMAGE =
   "https://img.icons8.com/pulsar-color/192/test-account.png";
 const ENDPOINT = "https://api.github.com/users/";
 
-const Home: React.FC = () => {
+// Logos locais (assets)
+const LOGO_LIGHT = require('../assets/logo/github-mark.png');
+const LOGO_DARK = require('../assets/logo/github-mark-white.png');
+
+const HomeContent: React.FC = () => {
+  const { width } = useWindowDimensions();
+  const isWide = width >= 1000; // breakpoint para layout em colunas
+  const { mode } = useAppTheme();
   const [userName, setUserName] = useState<string>("");
   const [login, setLogin] = useState<string>("");
   const [name, setName] = useState<string>("");
@@ -38,6 +57,16 @@ const Home: React.FC = () => {
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [searchResult, setSearchResult] = useState<RecentUser | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [repoPage, setRepoPage] = useState<number>(1);
+  const [hasMoreRepos, setHasMoreRepos] = useState<boolean>(true);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [isSuggestLoading, setIsSuggestLoading] = useState(false);
+  const suggestionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const shrink = scrollY.interpolate({ inputRange: [0, 120], outputRange: [0, 1], extrapolate: 'clamp' });
+  const suggestionCache = useRef<Map<string, any[]>>(new Map());
+  const REPOS_PER_PAGE = 30; // GitHub default
 
   const handleGetUserData = async (userName: string) => {
     if (!userName) {
@@ -46,10 +75,12 @@ const Home: React.FC = () => {
       return;
     }
     try {
+      setLoading(true);
       const response = await fetch(`${ENDPOINT}${userName}`);
       if (!response.ok) {
         setModalMessage("Erro ao buscar os dados do usuário.");
         setModalVisible(true);
+        setLoading(false);
         return;
       }
       const data = await response.json();
@@ -83,10 +114,12 @@ const Home: React.FC = () => {
     } catch {
       setModalMessage("Erro ao buscar os dados do usuário.");
       setModalVisible(true);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleGetUserRepositoryData = async (userName: string) => {
+  const handleGetUserRepositoryData = async (userName: string, page = 1, append = false) => {
     if (!userName) {
       setModalMessage("Por favor, insira um nome de usuário.");
       setModalVisible(true);
@@ -94,7 +127,7 @@ const Home: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`${ENDPOINT}${userName}/repos`);
+      const response = await fetch(`${ENDPOINT}${userName}/repos?per_page=${REPOS_PER_PAGE}&page=${page}`);
       if (!response.ok) {
         setModalMessage("Erro ao buscar os dados do usuário.");
         setModalVisible(true);
@@ -109,8 +142,16 @@ const Home: React.FC = () => {
         pushed_at: repo.pushed_at,
         html_url: repo.html_url,
       }));
-
-      setRepositories(repos);
+      if (append) {
+        setRepositories(prev => [...prev, ...repos]);
+      } else {
+        setRepositories(repos);
+      }
+      if (repos.length < REPOS_PER_PAGE) {
+        setHasMoreRepos(false);
+      } else {
+        setHasMoreRepos(true);
+      }
     } catch {
       setModalMessage("Erro ao buscar os dados dos repositórios.");
       setModalVisible(true);
@@ -118,7 +159,21 @@ const Home: React.FC = () => {
   };
 
   const handleSearch = async () => {
-    await Promise.all([handleGetUserData(userName), handleGetUserRepositoryData(userName)]);
+    setLoading(true);
+    setRepoPage(1);
+    await Promise.all([
+      handleGetUserData(userName),
+      handleGetUserRepositoryData(userName, 1, false)
+    ]);
+    setSuggestions([]);
+    setLoading(false);
+  };
+
+  const loadMoreRepos = async () => {
+    if (!hasMoreRepos || loading) return;
+    const next = repoPage + 1;
+    setRepoPage(next);
+    await handleGetUserRepositoryData(userName, next, true);
   };
 
   const handleRecentUserClick = async (user: RecentUser) => {
@@ -127,13 +182,67 @@ const Home: React.FC = () => {
     await handleGetUserRepositoryData(user.userName);
   };
 
+  const fetchSuggestions = async (q: string) => {
+    if (!q || q.length < 2) { setSuggestions([]); setIsSuggestLoading(false); return; }
+    const key = q.toLowerCase();
+    // histórico local (recent users) - priorizar início que bate
+    const historyMatches = recentUsers
+      .filter(u => u.userName.toLowerCase().startsWith(key))
+      .map(u => ({ login: u.userName, avatarUrl: u.avatarUrl, source: 'history' }));
+
+    if (suggestionCache.current.has(key)) {
+      const cached = suggestionCache.current.get(key)!;
+      const merged = [...historyMatches, ...cached.filter(c => !historyMatches.some(h => h.login === c.login))];
+      setSuggestions(merged);
+      setIsSuggestLoading(false);
+      return;
+    }
+    setIsSuggestLoading(true);
+    try {
+      const resp = await fetch(`https://api.github.com/search/users?q=${encodeURIComponent(q)}&per_page=5`);
+      if (!resp.ok) { setIsSuggestLoading(false); return; }
+      const json = await resp.json();
+      const remote = (json.items || []).map((u: any) => ({ login: u.login, avatarUrl: u.avatar_url, source: 'remote' }));
+      suggestionCache.current.set(key, remote);
+  const merged = [...historyMatches, ...remote.filter((r: any) => !historyMatches.some((h: any) => h.login === r.login))];
+      setSuggestions(merged);
+    } catch {
+      // falha silenciosa
+    } finally {
+      setIsSuggestLoading(false);
+    }
+  };
+
+  const handleChangeUserName = (text: string) => {
+    setUserName(text);
+    if (suggestionTimer.current) clearTimeout(suggestionTimer.current);
+    suggestionTimer.current = setTimeout(() => fetchSuggestions(text), 300);
+  };
+
+  const handlePickSuggestion = async (loginPicked: string) => {
+    setUserName(loginPicked);
+    setSuggestions([]);
+    await handleSearch();
+  };
+
+  const handleClear = () => {
+    setUserName("");
+    setSuggestions([]);
+    setIsSuggestLoading(false);
+  };
+
+  const handleCloseSuggestions = () => {
+    setSuggestions([]);
+    setIsSuggestLoading(false);
+  };
+
   const handleCloseModal = () => setModalVisible(false);
 
   useEffect(() => {
     const defaultUserName = "FelipeMTavaresS";
     setUserName(defaultUserName);
     handleGetUserData(defaultUserName);
-    handleGetUserRepositoryData(defaultUserName);
+    handleGetUserRepositoryData(defaultUserName, 1, false);
   }, []);
 
 
@@ -141,13 +250,19 @@ const Home: React.FC = () => {
     switch (item.type) {
       case 'searchBar':
         return (
-          <ViewCenter>
-          <SearchBarComponent
-            userName={userName}
-            setUserName={setUserName}
-            onSearch={handleSearch}
-          />
-          </ViewCenter>
+          <Section style={{ marginTop: 20, width: '100%', alignItems: 'stretch' }}>
+            <SearchBarComponent
+              userName={userName}
+              onChangeUserName={handleChangeUserName}
+              onSearch={handleSearch}
+              onClear={handleClear}
+              suggestions={suggestions}
+              onPickSuggestion={handlePickSuggestion}
+              shrink={shrink}
+              isLoadingSuggestions={isSuggestLoading}
+              onCloseSuggestions={handleCloseSuggestions}
+            />
+          </Section>
         );
       case 'searchResult':
         return searchResult ? (
@@ -155,40 +270,52 @@ const Home: React.FC = () => {
         ) : null;
       case 'profile':
         return (
-          <ViewCenter>
-          <BoxContainer>
-            <TouchableOpacity>
-              <ProfileIconContainer>
-                <ProfileImage source={{ uri: avatarUrl }} />
-              </ProfileIconContainer>
-            </TouchableOpacity>
-            <UserData
-              userName={name}
-              userLogin={login}
-              location={location}
-              id={id}
-            />
-            <UserStats followers={followers} publicRepos={publicRepos} />
-          </BoxContainer>
-          </ViewCenter>
-        );
-      case 'repositoryList':
-        return (
-          <ViewCenter>
-          <RepositoryList
-            repositories={repositories}
-            publicRepos={publicRepos}
-          />
-      </ViewCenter>
+          <Section>
+            {loading && repositories.length === 0 ? (
+              <BoxContainer $fluid={isWide && Platform.OS === 'web'}>
+                <ProfileSkeleton />
+              </BoxContainer>
+            ) : (
+              <BoxContainer $fluid={isWide && Platform.OS === 'web'}>
+                <ProfileIconContainer>
+                  <ProfileImage source={{ uri: avatarUrl }} />
+                </ProfileIconContainer>
+                <UserData
+                  userName={name}
+                  userLogin={login}
+                  location={location}
+                  id={id}
+                />
+                <UserStats followers={followers} publicRepos={publicRepos} />
+              </BoxContainer>
+            )}
+          </Section>
         );
       case 'recentUsers':
         return (
-          <ViewCenter>
+          <Section>
           <RecentUsersMenu
             recentUsers={recentUsers}
             onUserClick={handleRecentUserClick}
           />
-          </ViewCenter>
+          </Section>
+        );
+      case 'repositoryList':
+        return (
+          <Section>
+            {loading && repositories.length === 0 ? (
+              <BoxContainer $fluid={isWide && Platform.OS === 'web'}>
+                <RepoListSkeleton />
+              </BoxContainer>
+            ) : (
+              <BoxContainer $fluid={isWide && Platform.OS === 'web'}>
+                <RepositoryList
+                  repositories={repositories}
+                  publicRepos={publicRepos}
+                />
+              </BoxContainer>
+            )}
+          </Section>
         );
       default:
         return null;
@@ -204,21 +331,112 @@ const Home: React.FC = () => {
   ];
 
   return (
-    <Backgroud>
-      <FlatList
-        data={data}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.type}
-        ListFooterComponent={
-          <Modal
-            visible={modalVisible}
-            onClose={handleCloseModal}
-            message={modalMessage}
+      <Backgroud>
+        <Animated.View
+          style={{
+            width: '100%',
+            backgroundColor: darkTheme.colors.surface, // será sobrescrito pelo ThemeProvider nos filhos
+            shadowColor: '#000',
+            shadowOpacity: scrollY.interpolate({ inputRange: [0, 40], outputRange: [0, 0.25], extrapolate: 'clamp' }),
+            shadowRadius: scrollY.interpolate({ inputRange: [0, 60], outputRange: [0, 10], extrapolate: 'clamp' }),
+            shadowOffset: { width: 0, height: 2 },
+            elevation: scrollY.interpolate({ inputRange: [0, 50], outputRange: [0, 8], extrapolate: 'clamp' }),
+            zIndex: 10
+          }}
+        >
+          <TopBar>
+            <TopBarRow>
+              <TopBarLeft>
+                <Image
+                  source={mode === 'dark' ? LOGO_DARK : LOGO_LIGHT}
+                  style={{ width: 34, height: 34, resizeMode: 'contain' }}
+                  accessibilityLabel="GitHub Logo"
+                />
+                <TopBarTitle>GitHub Search</TopBarTitle>
+              </TopBarLeft>
+              <ThemeConsumerToggle />
+            </TopBarRow>
+          </TopBar>
+        </Animated.View>
+        {loading && repositories.length > 0 && (
+          <ActivityIndicator size="large" color={darkTheme.colors.accent} style={{ marginVertical: 16 }} />
+        )}
+        {isWide ? (
+          <Animated.ScrollView
+            style={{ flex: 1, width: '100%' }}
+            contentContainerStyle={{ paddingHorizontal: 32, paddingBottom: 160, maxWidth: 1600, alignSelf: 'center', width: '100%' }}
+            scrollEventThrottle={16}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: false, listener: (e: any) => {
+                const { layoutMeasurement, contentSize, contentOffset } = e.nativeEvent;
+                const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
+                if (distanceFromBottom < 400) {
+                  loadMoreRepos();
+                }
+              }}
+            )}
+          >
+            <Animated.View style={{ width: '100%', marginTop: 20, marginBottom: 32, transform: [{ translateY: Animated.multiply(shrink, -10) }] }}>
+              {renderItem({ item: { type: 'searchBar' }, index: 0, separators: {} as any })}
+            </Animated.View>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center', gap: 32 }}>
+              <View style={{ flex: 1, maxWidth: 480, gap: 32 }}>
+                {renderItem({ item: { type: 'profile' }, index: 1, separators: {} as any })}
+                {renderItem({ item: { type: 'recentUsers' }, index: 4, separators: {} as any })}
+              </View>
+              <View style={{ flex: 2, maxWidth: 820 }}>
+                {renderItem({ item: { type: 'repositoryList' }, index: 3, separators: {} as any })}
+              </View>
+            </View>
+            <Modal
+              visible={modalVisible}
+              onClose={handleCloseModal}
+              message={modalMessage}
+            />
+          </Animated.ScrollView>
+        ) : (
+          <Animated.FlatList
+            contentContainerStyle={{ paddingBottom: 120, width: '100%', paddingHorizontal: 20 }}
+            style={{ width: '100%' }}
+            data={data}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.type}
+            onEndReached={() => loadMoreRepos()}
+            onEndReachedThreshold={0.4}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: false }
+            )}
+            ListFooterComponent={
+              <Modal
+                visible={modalVisible}
+                onClose={handleCloseModal}
+                message={modalMessage}
+              />
+            }
           />
-        }
-      />
-    </Backgroud>
+        )}
+      </Backgroud>
   );
 };
+
+const Home: React.FC = () => (
+  <ThemeProviderCustom>
+    <HomeContent />
+  </ThemeProviderCustom>
+);
+
+// Componente interno para consumir contexto
+const ThemeConsumerToggle: React.FC = () => {
+  const { mode, toggle } = useAppTheme();
+  return (
+    <ThemeToggleBtn onPress={toggle} accessibilityRole="button" accessibilityLabel="Alternar tema claro/escuro">
+      <ThemeToggleText>{mode === 'dark' ? '🌙' : '☀️'}</ThemeToggleText>
+    </ThemeToggleBtn>
+  );
+};
+
+
 
 export default Home;

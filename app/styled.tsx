@@ -1,20 +1,20 @@
 import styled from "styled-components/native";
+import React from 'react';
 
-export const BoxContainer = styled.View`
-  width: 320px;
-  max-height: 400px;
-  background-color: #fff;
-  border-radius: 10px;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 50px;
+export const BoxContainer = styled.View<{ $fluid?: boolean }>`
+  width: 100%;
+  /* Para web usamos max-width apenas se não for fluid; em mobile RN ignora max-width */
+  max-width: ${({$fluid}) => $fluid ? '100%' : '640px'};
+  background-color: ${({theme}) => theme.colors.surface};
+  border: 1px solid ${({theme}) => theme.colors.border};
+  border-radius: ${({theme}) => theme.radius.xl}px;
+  padding: ${({theme}) => theme.spacing.xl}px ${({theme}) => theme.spacing.lg}px;
+  margin-bottom: ${({theme}) => theme.spacing.xxl}px;
   shadow-color: #000;
-  shadow-offset: 0px 1px;
-  shadow-opacity: 0.2;
-  shadow-radius: 1.41px;
-  padding: 15px;
-
-  elevation: 2;
+  shadow-opacity: 0.35;
+  shadow-radius: 12px;
+  elevation: 6;
+  gap: ${({theme}) => theme.spacing.md}px;
 `;
 
 
@@ -25,78 +25,34 @@ export const BoxContainerStats = styled.View`
   align-items: center;
   margin-bottom: 50px; /* Adiciona um espaçamento na parte inferior */
 `;
-export const recentUsersContainer = styled.View`
-      marginVertical: 20,
-      width: '100%',
-      paddingHorizontal: 20,
-`;
-
-export const recentUsersTitle = styled.View`
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-`;
-
-export const recentUserItem = styled.View`
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-`;
-
-export const BoxContainerRepos = styled.View`
-  width: 320px;
-  height: 300px;
-  background-color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  border-radius: 10px;
-  margin-bottom: 50px;
-  overflow: hidden;
-  padding: 10px;
-  z-index: -1;
-
-
-  /* Sombras para iOS */
-  shadow-color: #000;
-  shadow-offset: 0px 1px;
-  shadow-opacity: 0.2;
-  shadow-radius: 1.41px;
-
-  /* Sombras para Android */
-  elevation: 2;
-`;
-
-export const ScrollRepos = styled.ScrollView`
-  flex: 1;
-  width: 100%;
-  height: 100%;
-`;
+/* Removidos estilos legados: recentUsersContainer, recentUsersTitle, recentUserItem, BoxContainerRepos, ScrollRepos */
 
 export const ProfileIconContainer = styled.View`
-  width: 120px;
-  height: 120px;
-  border-radius: 60px;
-  overflow: hidden; /* Faz o container flutuar sobre outros elementos */
-  top: -60px; /* Ajuste conforme necessário */
-  z-index: 100;
-  align-items: center;
+  width: 128px;
+  height: 128px;
+  border-radius: 64px;
+  overflow: hidden;
+  align-self: center;
+  border: 2px solid ${({theme}) => theme.colors.border};
+  background-color: ${({theme}) => theme.colors.surfaceAlt};
   justify-content: center;
+  align-items: center;
 `;
 
 export const ProfileImage = styled.Image`
   width: 100%;
   height: 100%;
-  object-fit: cover;
 `;
 
 export const TextTitle = styled.Text`
-  color: #333;
+  color: ${({theme}) => theme.colors.textPrimary};
   font-size: 48px;
   font-weight: bold;
   text-align: center;
 `;
 
 export const TextSubTitle = styled.Text`
-  color: #333;
+  color: ${({theme}) => theme.colors.textSecondary};
   font-size: 12px;
   text-align: center;
 `;
@@ -106,7 +62,7 @@ export const ViewSpace = styled.View`
   justify-content: space-around;
   align-items: center;
   width: 100%;
-  bottom: 30px;
+  margin-top: 8px;
 `;
 
 export const ViewSpaceRepos = styled.View`
@@ -118,31 +74,32 @@ export const ViewSpaceRepos = styled.View`
 
 export const ProfileText = styled.View`
   align-items: center;
-  bottom: 40px;
+  gap: 4px;
+  margin-top: 12px;
 `;
 
 export const H1Text = styled.Text`
-  font-size: 24px;
-  font-weight: bold;
-  color: #333;
+  font-size: ${({theme}) => theme.font.size.xl}px;
+  font-weight: ${({theme}) => theme.font.weight.bold};
+  color: ${({theme}) => theme.colors.textPrimary};
 `;
 
 export const H2Text = styled.Text`
-  font-size: 18px;
-  font-weight: normal;
-  color: #333;
+  font-size: ${({theme}) => theme.font.size.lg}px;
+  font-weight: ${({theme}) => theme.font.weight.medium};
+  color: ${({theme}) => theme.colors.textSecondary};
 `;
 
 export const H2TextBold = styled.Text`
-  font-size: 18px;
-  font-weight: bold;
-  color: #333;
+  font-size: ${({theme}) => theme.font.size.lg}px;
+  font-weight: ${({theme}) => theme.font.weight.bold};
+  color: ${({theme}) => theme.colors.textPrimary};
 `;
 
 export const H2TextRepos = styled.Text`
   font-size: 18px;
   font-weight: normal;
-  color: #0000EE;
+  color: ${({theme}) => theme.colors.accent};
   text-decoration-line: underline;
   margin-top: 10px;
   text-align: left;
@@ -151,7 +108,7 @@ export const H2TextRepos = styled.Text`
 export const DataText = styled.Text`
   font-size: 18px;
   font-weight: normal;
-  color: #333;
+  color: ${({theme}) => theme.colors.textPrimary};
   margin-top: 10px;
   margin-right: 5px;
   text-align: right;
@@ -163,14 +120,14 @@ export const ReposView = styled.View`
 `;
 
 export const TextGray = styled.Text`
-  color: #808080;
+  color: ${({theme}) => theme.colors.textSecondary};
 `;
 
 export const HorizontalLine = styled.View`
-  height: 1px; /* Altura da linha (espessura) */
-  width: auto; /* Largura da linha (preenche o espaço disponível) */
-  background-color: #ccc; /* Cor da linha (ajuste conforme necessário) */
-  margin: 10px 10px; /* Margem superior e inferior para espaçamento */
+  height: 1px;
+  width: auto;
+  background-color: ${({theme}) => theme.colors.border};
+  margin: 10px 10px;
   margin-left: -5px;
   margin-right: 5px;
 `;
@@ -178,31 +135,30 @@ export const HorizontalLine = styled.View`
 export const InputContainer = styled.View`
   flex-direction: row;
   align-items: center;
-  height: 45px;
-  width: 80%;
-  border-radius: 22px;
-  border: 1px solid #ccc;
-  background-color: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  elevation: 1;
-  margin-top: 20px;
-  margin-bottom: 70px;
-  padding-left: 15px;
+  height: 52px;
+  width: 100%;
+  border-radius: ${({theme}) => theme.radius.full}px;
+  border: 1px solid ${({theme}) => theme.colors.border};
+  background-color: ${({theme}) => theme.colors.surfaceAlt};
+  padding-left: ${({theme}) => theme.spacing.lg}px;
+  padding-right: ${({theme}) => theme.spacing.sm}px;
+  gap: ${({theme}) => theme.spacing.sm}px;
+  margin-bottom: ${({theme}) => theme.spacing.xl}px;
 `;
 
 export const StyledTextInput = styled.TextInput`
   flex: 1;
-  font-size: 16px;
-  color: #808080;
-  border-width: 0; /* Remove a borda */
-  border-color: transparent;
+  font-size: ${({theme}) => theme.font.size.md}px;
+  color: ${({theme}) => theme.colors.textPrimary};
 `;
 
 export const SearchButton = styled.TouchableOpacity`
-  padding: 10px;
-  margin-right: 10px;
+  width: 42px;
+  height: 42px;
+  border-radius: 21px;
   justify-content: center;
   align-items: center;
+  background-color: ${({theme}) => theme.colors.accent};
 `;
 
 export const Container = styled.View`
@@ -220,6 +176,7 @@ export const RecentUsersTitle = styled.Text`
   font-size: 18px;
   font-weight: bold;
   margin-bottom: 10px;
+  color: ${({theme}) => theme.colors.textPrimary};
 `;
 
 export const RecentUserItem = styled.View`
@@ -258,6 +215,69 @@ export const SearchResultAvatar = styled.Image`
 `;
 
 export const Backgroud = styled.View`
-  background-color: #eff2f5;
+  flex: 1;
+  background-color: ${({theme}) => theme.colors.background};
+`;
 
+export const TopBar = styled.View`
+  width: 100%;
+  padding: 16px 20px 14px 20px;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 12px;
+  background-color: ${({theme}) => theme.colors.surface};
+`;
+
+export const ThemeToggleBtn = styled.TouchableOpacity`
+  padding: 10px 14px;
+  border-radius: 24px;
+  background-color: ${({theme}) => theme.colors.surface};
+  border: 1px solid ${({theme}) => theme.colors.border};
+`;
+
+export const ThemeToggleText = styled.Text`
+  color: ${({theme}) => theme.colors.textSecondary};
+  font-size: 14px;
+`;
+
+// Simulated gradient wrapper (fallback sem expo-linear-gradient)
+// HeaderGradientWrapper removido (gradiente não utilizado atualmente)
+
+export const TopBarRow = styled.View`
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+`;
+
+export const TopBarLeft = styled.View`
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+`;
+
+export const TopBarTitle = styled.Text`
+  font-size: ${({theme}) => theme.font.size.xl}px;
+  font-weight: ${({theme}) => theme.font.weight.bold};
+  color: ${({theme}) => theme.colors.textPrimary};
+`;
+
+
+export const ScreenWrapper = styled.ScrollView`
+  flex: 1;
+  padding: ${({theme}) => theme.spacing.xl}px 0;
+`;
+
+export const Section = styled.View`
+  width: 100%;
+  align-items: center;
+`;
+
+// Largura padronizada para conteúdo que não precisa de cartão (ex: search bar)
+export const ContentWidth = styled.View`
+  width: 100%;
+  max-width: 640px;
+  padding: 0 ${({theme}) => theme.spacing.lg}px;
+  align-self: center;
 `;
