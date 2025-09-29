@@ -1,11 +1,13 @@
-import React from "react";
-import { View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, useWindowDimensions } from "react-native";
 import {
-  TextTitle,
-  TextSubTitle,
-  ViewSpace,
-  BoxContainerStats
+  BoxContainerStats,
+  StatItem,
+  StatValue,
+  StatLabel,
+  StatDivider
 } from "../styled";
+import { formatNumber } from './utils';
 
 interface UserStatsProps {
   followers: number;
@@ -13,27 +15,66 @@ interface UserStatsProps {
 }
 
 
-const UserStats: React.FC<UserStatsProps> = ({ followers, publicRepos }) => (
-  <BoxContainerStats>
-    <ViewSpace>
-      <TextTitle>{formatNumber(followers)}</TextTitle>
-      <TextTitle>{formatNumber(publicRepos)}</TextTitle>
-    </ViewSpace>
-    <ViewSpace>
-      <TextSubTitle>Seguidores</TextSubTitle>
-      <TextSubTitle>Repos</TextSubTitle>
-    </ViewSpace>
-  </BoxContainerStats>
-);
+const animateValue = (anim: Animated.Value, to: number) => {
+  Animated.timing(anim, {
+    toValue: to,
+    duration: 900,
+    useNativeDriver: false,
+  }).start();
+};
 
-function formatNumber(value: number): string {
-  if (value >= 1000 && value < 1000000) {
-    return (value / 1000).toFixed(1).replace(".0", "") + "k"; // Ex: 1500 -> 1.5k
-  } else if (value >= 1000000) {
-    return (value / 1000000).toFixed(1).replace(".0", "") + "M"; // Ex: 1500000 -> 1.5M
-  } else {
-    return value.toString(); // Ex: 500 -> 500
-  }
-}
+const UserStats: React.FC<UserStatsProps> = ({ followers, publicRepos }) => {
+  const followersAnim = useRef(new Animated.Value(0)).current;
+  const reposAnim = useRef(new Animated.Value(0)).current;
+  const [followersDisplay, setFollowersDisplay] = useState(0);
+  const [reposDisplay, setReposDisplay] = useState(0);
+  const { width } = useWindowDimensions();
+  const stack = width < 320; // breakpoint estreito
+
+  useEffect(() => {
+    // listeners para atualizar valor exibido durante animação
+    const sub1 = followersAnim.addListener(({ value }) => {
+      setFollowersDisplay(Math.round(value));
+    });
+    const sub2 = reposAnim.addListener(({ value }) => {
+      setReposDisplay(Math.round(value));
+    });
+    return () => {
+      followersAnim.removeListener(sub1);
+      reposAnim.removeListener(sub2);
+    };
+  }, [followersAnim, reposAnim]);
+
+  useEffect(() => {
+    followersAnim.stopAnimation();
+    // Reinicia a partir do valor exibido atual para suavizar
+    followersAnim.setValue(followersDisplay);
+    animateValue(followersAnim, followers);
+  }, [followers]);
+
+  useEffect(() => {
+    reposAnim.stopAnimation();
+    reposAnim.setValue(reposDisplay);
+    animateValue(reposAnim, publicRepos);
+  }, [publicRepos]);
+
+  return (
+    <BoxContainerStats $stack={stack} accessibilityRole="summary">
+      <StatItem accessibilityLabel={`Seguidores: ${followers}`}>
+        <StatValue>
+          {formatNumber(followersDisplay)}
+        </StatValue>
+        <StatLabel>Seguidores</StatLabel>
+      </StatItem>
+      {!stack && <StatDivider />}
+      <StatItem accessibilityLabel={`Repositórios públicos: ${publicRepos}`}>
+        <StatValue>
+          {formatNumber(reposDisplay)}
+        </StatValue>
+        <StatLabel>Repos</StatLabel>
+      </StatItem>
+    </BoxContainerStats>
+  );
+};
 
 export default UserStats;

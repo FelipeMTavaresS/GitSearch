@@ -1,8 +1,16 @@
 import React from "react";
-import { View, Text, FlatList, TouchableOpacity, useWindowDimensions } from "react-native";
-import { useTheme } from 'styled-components/native';
+import { View, FlatList, TouchableOpacity, useWindowDimensions } from "react-native";
 import { RecentUser } from "./types";
-import { BoxContainer, RecentUserAvatar, RecentUserItem, RecentUsersContainer, RecentUsersTitle } from "../styled";
+import {
+  RecentUserAvatar,
+  RecentUserItem,
+  RecentUsersContainer,
+  RecentUsersTitle,
+  RecentUsersOuter,
+  RecentUsersBox,
+  RecentUserName,
+  RecentUserSecondary
+} from "../styled";
 
 interface RecentUsersMenuProps {
   recentUsers: RecentUser[];
@@ -13,36 +21,45 @@ const RecentUsersMenu: React.FC<RecentUsersMenuProps> = ({
   recentUsers,
   onUserClick,
 }) => {
-  const { width: screenWidth } = useWindowDimensions();
-  const isWide = screenWidth >= 1000;
-  const theme = useTheme();
-  const nameStyle = { color: theme.colors.textPrimary } as const;
-  const secondaryStyle = { color: theme.colors.textSecondary, fontSize: 12 } as const;
+  const { width } = useWindowDimensions();
+  const isWide = width >= 1000;
+  const maxHeight = isWide ? 420 : 360; // limite de altura para evitar alongar demais
 
   return (
-    <View style={{ alignItems: 'center', width: '100%' }}>
-      <BoxContainer style={isWide ? { width: 320 } : { width: '100%' }}>
-        <RecentUsersContainer>
+    <RecentUsersOuter>
+      <RecentUsersBox $isWide={isWide}>
+  <RecentUsersContainer>
           <RecentUsersTitle>Usuários Recentes</RecentUsersTitle>
-          <FlatList
-            data={recentUsers}
-            keyExtractor={(item) => item.userName + item.id}
-            renderItem={({ item }) => (
-              <RecentUserItem>
-                <TouchableOpacity onPress={() => onUserClick(item)}>
-                  <RecentUserAvatar source={{ uri: item.avatarUrl }} />
-                </TouchableOpacity>
-                <View>
-                  <Text style={nameStyle}>{item.name}</Text>
-                  <Text style={secondaryStyle}>{item.login}</Text>
-                  <Text style={secondaryStyle}>{item.location}</Text>
-                </View>
-              </RecentUserItem>
-            )}
-          />
+          {recentUsers.length === 0 ? (
+            <RecentUserSecondary style={{paddingVertical: 8}}>
+              Nenhum usuário ainda.
+            </RecentUserSecondary>
+          ) : (
+            <View style={{maxHeight, width: '100%'}}>
+              <FlatList
+                data={recentUsers.slice().reverse()}
+                keyExtractor={(item) => item.userName + item.id}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => (
+                  <RecentUserItem>
+                    <TouchableOpacity onPress={() => onUserClick(item)}>
+                      <RecentUserAvatar source={{ uri: item.avatarUrl }} />
+                    </TouchableOpacity>
+                    <View>
+                      <RecentUserName numberOfLines={1}>{item.name || item.login}</RecentUserName>
+                      <RecentUserSecondary numberOfLines={1}>{item.login}</RecentUserSecondary>
+                      {item.location ? (
+                        <RecentUserSecondary numberOfLines={1}>{item.location}</RecentUserSecondary>
+                      ) : null}
+                    </View>
+                  </RecentUserItem>
+                )}
+              />
+            </View>
+          )}
         </RecentUsersContainer>
-      </BoxContainer>
-    </View>
+      </RecentUsersBox>
+    </RecentUsersOuter>
   );
 };
 

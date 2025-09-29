@@ -1,5 +1,6 @@
 import React from "react";
 import { View } from "react-native";
+import { Repository } from "./types";
 import {
   ViewSpaceRepos,
   H2TextRepos,
@@ -10,12 +11,8 @@ import {
 
 // Interface para as props do componente
 interface RepositoryItemProps {
-  repo: {
-    name: string;
-    description: string | null;  // Aceita string ou null
-    created_at: string;
-    pushed_at: string;
-  };
+  // Usa a interface centralizada; campos extras (language, html_url) são ignorados aqui
+  repo: Repository;
   formatTextTitle: (text: string) => string;
   formatTextDesc: (text: string) => string;
 }

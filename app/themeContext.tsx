@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, ReactNode, useRef, useEffect } from 'react';
 import { ThemeProvider } from 'styled-components/native';
-import { Animated, Easing, View, StyleSheet } from 'react-native';
+import { Animated, Easing, Platform } from 'react-native';
 import { darkTheme, lightTheme, AppTheme } from './theme';
 
 interface ThemeCtx {
@@ -20,49 +20,59 @@ export const useAppTheme = () => {
 export const ThemeProviderCustom: React.FC<{children: ReactNode}> = ({ children }) => {
   const [mode, setMode] = useState<'light' | 'dark'>('dark');
   const [prevMode, setPrevMode] = useState<'light' | 'dark' | null>(null);
-  const anim = useRef(new Animated.Value(0)).current; // 0 = atual, 1 = transição
+  const anim = useRef(new Animated.Value(1)).current; // 0 => cor antiga, 1 => cor atual
 
   const theme = useMemo(() => (mode === 'dark' ? darkTheme : lightTheme), [mode]);
-  const prevTheme = useMemo(() => (prevMode ? (prevMode === 'dark' ? darkTheme : lightTheme) : null), [prevMode]);
-
-  const runTransition = () => {
-    anim.setValue(0);
-    Animated.timing(anim, {
-      toValue: 1,
-      duration: 380,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false
-    }).start(() => {
-      setPrevMode(null);
-      anim.setValue(0);
-    });
-  };
+  const fromTheme = useMemo(() => (prevMode ? (prevMode === 'dark' ? darkTheme : lightTheme) : theme), [prevMode, mode]);
 
   const toggle = () => {
-    setPrevMode(mode); // guarda tema anterior
+    setPrevMode(mode);
     setMode(m => (m === 'dark' ? 'light' : 'dark'));
   };
 
-  // Quando modo mudar e existe prevMode, roda animação
   useEffect(() => {
-    if (prevMode) runTransition();
+    if (prevMode) {
+      anim.setValue(0);
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 420,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false
+      }).start(() => {
+        setPrevMode(null);
+      });
+    }
   }, [mode]);
 
-  const overlayOpacity = anim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }); // antigo some
+  // Interpola apenas background principal; demais cores terão transição por CSS (web)
+  const backgroundColor = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [fromTheme.colors.background, theme.colors.background]
+  });
+
+  // Injeta transição global suave para web (evita sensação de repaint duro nas surfaces)
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const id = 'theme-smooth-transitions';
+    let styleEl = document.getElementById(id) as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = id;
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = `
+      *, *::before, *::after {
+        transition: background-color .38s ease, color .38s ease, border-color .38s ease, box-shadow .38s ease;
+      }
+    `;
+  }, []);
 
   const value = useMemo(() => ({ theme, mode, toggle }), [theme, mode]);
   return (
     <ThemeContext.Provider value={value}>
-      <View style={{ flex: 1 }}>
-        {/* Camada nova (tema atual) */}
+      <Animated.View style={{ flex: 1, backgroundColor }}>
         <ThemeProvider theme={theme}>{children}</ThemeProvider>
-        {/* Overlay cross-fade (mostra o tema anterior desvanecendo) */}
-        {prevTheme && (
-          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: overlayOpacity }]}>
-            <ThemeProvider theme={prevTheme}>{children}</ThemeProvider>
-          </Animated.View>
-        )}
-      </View>
+      </Animated.View>
     </ThemeContext.Provider>
   );
 };

@@ -1,17 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { TouchableOpacity, FlatList, ListRenderItem, ActivityIndicator, View, useWindowDimensions, Animated, Platform } from "react-native";
 import { ThemeProviderCustom, useAppTheme } from './themeContext';
-import RecentUsersMenu from "./components/RecentUsersMenu";
+// RecentUsers integrados na SearchBar agora
 import RepositoryList from "./components/RepositoryList";
 import {
   Backgroud,
   BoxContainer,
   ProfileIconContainer,
   ProfileImage,
-  ViewCenter,
-  ScreenWrapper,
   Section,
-  ContentWidth,
   TopBar,
   ThemeToggleBtn,
   ThemeToggleText,
@@ -33,6 +30,9 @@ import { ProfileSkeleton, RepoListSkeleton } from './components/Skeleton';
 const PLACEHOLDER_IMAGE =
   "https://img.icons8.com/pulsar-color/192/test-account.png";
 const ENDPOINT = "https://api.github.com/users/";
+// ===== Debug =====
+const DEBUG = true;
+const debugLog = (...args: any[]) => { if (DEBUG) console.log('[DEBUG]', ...args); };
 
 // Logos locais (assets)
 const LOGO_LIGHT = require('../assets/logo/github-mark.png');
@@ -58,15 +58,17 @@ const HomeContent: React.FC = () => {
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [searchResult, setSearchResult] = useState<RecentUser | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [repoPage, setRepoPage] = useState<number>(1);
+  // Página de repositórios (1 = primeira página carregada). Exibimos 5 dos primeiros 10 inicialmente.
+  const [repoPage, setRepoPage] = useState<number>(0);
   const [hasMoreRepos, setHasMoreRepos] = useState<boolean>(true);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isSuggestLoading, setIsSuggestLoading] = useState(false);
   const suggestionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
   const shrink = scrollY.interpolate({ inputRange: [0, 120], outputRange: [0, 1], extrapolate: 'clamp' });
   const suggestionCache = useRef<Map<string, any[]>>(new Map());
-  const REPOS_PER_PAGE = 30; // GitHub default
+  const REPOS_PER_PAGE = 10; // Carregar 10 por clique
 
   const handleGetUserData = async (userName: string) => {
     if (!userName) {
@@ -76,14 +78,18 @@ const HomeContent: React.FC = () => {
     }
     try {
       setLoading(true);
+      debugLog('handleGetUserData:start', { userName });
       const response = await fetch(`${ENDPOINT}${userName}`);
+      debugLog('handleGetUserData:response', { status: response.status, url: response.url });
       if (!response.ok) {
         setModalMessage("Erro ao buscar os dados do usuário.");
         setModalVisible(true);
         setLoading(false);
+        debugLog('handleGetUserData:failed', { userName, status: response.status });
         return;
       }
       const data = await response.json();
+      debugLog('handleGetUserData:parsed', { login: data.login, public_repos: data.public_repos });
       const {
         login,
         name,
@@ -116,6 +122,7 @@ const HomeContent: React.FC = () => {
       setModalVisible(true);
     } finally {
       setLoading(false);
+      debugLog('handleGetUserData:done', { userName });
     }
   };
 
@@ -127,13 +134,37 @@ const HomeContent: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`${ENDPOINT}${userName}/repos?per_page=${REPOS_PER_PAGE}&page=${page}`);
+      debugLog('repos:start', { userName, page, append });
+      if (publicRepos && page > Math.ceil(publicRepos / REPOS_PER_PAGE)) {
+        debugLog('repos:exceeds-total-pages', { userName, page });
+        setHasMoreRepos(false);
+        return;
+      }
+      const url = `${ENDPOINT}${userName}/repos?per_page=${REPOS_PER_PAGE}&page=${page}&sort=updated`;
+      const response = await fetch(url);
+      debugLog('repos:response', { status: response.status, url });
       if (!response.ok) {
-        setModalMessage("Erro ao buscar os dados do usuário.");
+        if (response.status === 403) {
+          const remaining = response.headers.get('X-RateLimit-Remaining');
+          const reset = response.headers.get('X-RateLimit-Reset');
+          if (remaining === '0' && reset) {
+            const resetDate = new Date(parseInt(reset, 10) * 1000);
+            const minutes = Math.max(1, Math.ceil((resetDate.getTime() - Date.now()) / 60000));
+            setModalMessage(`Limite da API do GitHub atingido. Tente novamente em ~${minutes} min.`);
+            debugLog('repos:rate-limit', { remaining, reset: resetDate.toISOString(), minutes });
+          } else {
+            setModalMessage("Acesso negado pela API (403). Aguarde e tente novamente.");
+            debugLog('repos:403-other');
+          }
+        } else {
+          setModalMessage("Erro ao buscar os dados do usuário.");
+          debugLog('repos:non-ok', { status: response.status });
+        }
         setModalVisible(true);
         return;
       }
       const data = await response.json();
+      debugLog('repos:raw-length', { length: data.length });
       const repos = data.map((repo: any) => ({
         name: repo.name,
         description: repo.description,
@@ -142,44 +173,78 @@ const HomeContent: React.FC = () => {
         pushed_at: repo.pushed_at,
         html_url: repo.html_url,
       }));
-      if (append) {
-        setRepositories(prev => [...prev, ...repos]);
-      } else {
-        setRepositories(repos);
-      }
-      if (repos.length < REPOS_PER_PAGE) {
+      if (repos.length === 0) {
+        debugLog('repos:empty-page', { userName, page });
         setHasMoreRepos(false);
+        return;
+      }
+      setRepositories(prev => {
+        const merged = append ? [...prev, ...repos] : repos;
+        const seen = new Set<string>();
+        const dedup = [] as typeof merged;
+        for (const r of merged) {
+          if (!seen.has(r.html_url)) {
+            seen.add(r.html_url);
+            dedup.push(r);
+          }
+        }
+        debugLog('repos:merged', { prevLen: prev.length, added: repos.length, finalLen: dedup.length, append });
+        return dedup;
+      });
+      const linkHeader = response.headers.get('link');
+      if (repos.length < REPOS_PER_PAGE || !linkHeader || !/rel="next"/.test(linkHeader)) {
+        setHasMoreRepos(false);
+        debugLog('repos:no-more', { userName, page });
       } else {
         setHasMoreRepos(true);
+        debugLog('repos:more-available', { userName, page });
       }
-    } catch {
+    } catch (err) {
+      debugLog('repos:error', { userName, page, err });
       setModalMessage("Erro ao buscar os dados dos repositórios.");
       setModalVisible(true);
     }
   };
 
-  const handleSearch = async () => {
+  const handleSearch = async (override?: string) => {
+    const target = override ?? userName;
+    if (!target) return;
+    debugLog('search:start', { target, override });
     setLoading(true);
-    setRepoPage(1);
-    await Promise.all([
-      handleGetUserData(userName),
-      handleGetUserRepositoryData(userName, 1, false)
-    ]);
-    setSuggestions([]);
-    setLoading(false);
+    setRepositories([]);
+    setPublicRepos(0);
+    setFollowers(0);
+    setFollowing(0);
+    setLocation("");
+    setId("");
+    setAvatarUrl(PLACEHOLDER_IMAGE);
+    try {
+      if (override) setUserName(override);
+      await handleGetUserData(target);
+      setRepoPage(1);
+      setHasMoreRepos(true);
+      await handleGetUserRepositoryData(target, 1, false);
+    } catch (err) {
+      debugLog('search:error', { target, err });
+    } finally {
+      setSuggestions([]);
+      setLoading(false);
+      debugLog('search:done', { target });
+    }
   };
 
   const loadMoreRepos = async () => {
-    if (!hasMoreRepos || loading) return;
-    const next = repoPage + 1;
-    setRepoPage(next);
-    await handleGetUserRepositoryData(userName, next, true);
+    if (!login || !hasMoreRepos || isLoadingMore) return;
+    const nextPage = repoPage + 1;
+    setIsLoadingMore(true);
+    await handleGetUserRepositoryData(login, nextPage, true);
+    setRepoPage(nextPage);
+    setIsLoadingMore(false);
   };
 
   const handleRecentUserClick = async (user: RecentUser) => {
-    setUserName(user.userName);
-    await handleGetUserData(user.userName);
-    await handleGetUserRepositoryData(user.userName);
+    debugLog('recent:click', { user: user.userName });
+    await handleSearch(user.userName);
   };
 
   const fetchSuggestions = async (q: string) => {
@@ -220,9 +285,9 @@ const HomeContent: React.FC = () => {
   };
 
   const handlePickSuggestion = async (loginPicked: string) => {
-    setUserName(loginPicked);
     setSuggestions([]);
-    await handleSearch();
+    debugLog('suggestion:pick', { loginPicked });
+    await handleSearch(loginPicked);
   };
 
   const handleClear = () => {
@@ -241,8 +306,12 @@ const HomeContent: React.FC = () => {
   useEffect(() => {
     const defaultUserName = "FelipeMTavaresS";
     setUserName(defaultUserName);
-    handleGetUserData(defaultUserName);
-    handleGetUserRepositoryData(defaultUserName, 1, false);
+    (async () => {
+      await handleGetUserData(defaultUserName);
+      setRepoPage(1);
+      setHasMoreRepos(true);
+      await handleGetUserRepositoryData(defaultUserName, 1, false);
+    })();
   }, []);
 
 
@@ -261,6 +330,17 @@ const HomeContent: React.FC = () => {
               shrink={shrink}
               isLoadingSuggestions={isSuggestLoading}
               onCloseSuggestions={handleCloseSuggestions}
+              recentUsers={recentUsers.map(u => ({ login: u.userName, avatarUrl: u.avatarUrl, name: u.name }))}
+              onPickRecentUser={(loginPicked) => {
+                const found = recentUsers.find(r => r.userName === loginPicked);
+                if (found) {
+                  setSuggestions([]);
+                  handleSearch(found.userName);
+                } else {
+                  setSuggestions([]);
+                  handleSearch(loginPicked);
+                }
+              }}
             />
           </Section>
         );
@@ -292,14 +372,7 @@ const HomeContent: React.FC = () => {
           </Section>
         );
       case 'recentUsers':
-        return (
-          <Section>
-          <RecentUsersMenu
-            recentUsers={recentUsers}
-            onUserClick={handleRecentUserClick}
-          />
-          </Section>
-        );
+        return null; // não usado mais – mantido para não quebrar FlatList/data
       case 'repositoryList':
         return (
           <Section>
@@ -310,8 +383,12 @@ const HomeContent: React.FC = () => {
             ) : (
               <BoxContainer $fluid={isWide && Platform.OS === 'web'}>
                 <RepositoryList
+                  key={login || 'repo-list'}
                   repositories={repositories}
                   publicRepos={publicRepos}
+                  isLoadingMore={isLoadingMore}
+                  hasMore={hasMoreRepos}
+                  onLoadMore={loadMoreRepos}
                 />
               </BoxContainer>
             )}
@@ -327,7 +404,7 @@ const HomeContent: React.FC = () => {
     { type: 'searchResult' },
     { type: 'profile' },
     { type: 'repositoryList' },
-    { type: 'recentUsers' },
+  // { type: 'recentUsers' }, // removido da ordem visual
   ];
 
   return (
@@ -369,11 +446,7 @@ const HomeContent: React.FC = () => {
             onScroll={Animated.event(
               [{ nativeEvent: { contentOffset: { y: scrollY } } }],
               { useNativeDriver: false, listener: (e: any) => {
-                const { layoutMeasurement, contentSize, contentOffset } = e.nativeEvent;
-                const distanceFromBottom = contentSize.height - (contentOffset.y + layoutMeasurement.height);
-                if (distanceFromBottom < 400) {
-                  loadMoreRepos();
-                }
+                // Removido carregamento automático ao aproximar do fim
               }}
             )}
           >
@@ -402,8 +475,7 @@ const HomeContent: React.FC = () => {
             data={data}
             renderItem={renderItem}
             keyExtractor={(item) => item.type}
-            onEndReached={() => loadMoreRepos()}
-            onEndReachedThreshold={0.4}
+            // Removido carregamento automático ao chegar ao fim da lista
             onScroll={Animated.event(
               [{ nativeEvent: { contentOffset: { y: scrollY } } }],
               { useNativeDriver: false }
