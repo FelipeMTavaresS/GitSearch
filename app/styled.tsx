@@ -472,16 +472,21 @@ const SuggestionsBox = styled(Animated.View)`
 `;
 
 export const SearchSuggestionsBox = styled(Animated.View)`
-  margin-top: -8px;
+  /* Cola diretamente no input removendo qualquer gap vertical */
+  margin-top: -4px;
   background-color: ${({theme}) => theme.colors.surfaceAlt};
   border: 1px solid ${({theme}) => theme.colors.border};
-  border-top-width: 0px;
-  padding: 8px 10px 10px 10px;
+  border-top-width: 0; /* unir com a borda inferior do input container */
+  padding: 6px 10px 10px 10px;
   border-bottom-left-radius: ${({theme}) => theme.radius.lg}px;
   border-bottom-right-radius: ${({theme}) => theme.radius.lg}px;
   gap: 6px;
-  max-height: 260px;
+  max-height: 320px;
   overflow: hidden;
+  shadow-color: #000;
+  shadow-opacity: 0.10;
+  shadow-radius: 12px;
+  elevation: 4;
 `;
 
 const SuggestionRow = styled.Pressable`

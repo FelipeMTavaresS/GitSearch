@@ -19,11 +19,13 @@ import {
 import SearchResultsMenu from "./components/SearchResultsMenu";
 
 import SearchBarComponent from "./components/searchbarcomponent";
+import RecentUsersMenu from "./components/RecentUsersMenu";
 import { Image } from 'react-native';
 import UserData from "./components/userdata";
 import UserStats from "./components/userstats";
 import Modal from "./components/modal";
 import { RecentUser, Repository } from "./components/types";
+import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { darkTheme } from './theme';
 import { ProfileSkeleton, RepoListSkeleton } from './components/Skeleton';
 
@@ -64,10 +66,12 @@ const HomeContent: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isSuggestLoading, setIsSuggestLoading] = useState(false);
-  const suggestionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Valor debounced do texto de busca para sugestões (apenas para suggestions, não para busca principal que é manual)
+  const debouncedUserName = useDebouncedValue(userName, 320);
   const scrollY = useRef(new Animated.Value(0)).current;
   const shrink = scrollY.interpolate({ inputRange: [0, 120], outputRange: [0, 1], extrapolate: 'clamp' });
   const suggestionCache = useRef<Map<string, any[]>>(new Map());
+  const suggestionsAbort = useRef<AbortController | null>(null);
   const REPOS_PER_PAGE = 10; // Carregar 10 por clique
 
   const handleGetUserData = async (userName: string) => {
@@ -112,10 +116,17 @@ const HomeContent: React.FC = () => {
         if (prevUsers.some(user => user.userName === login)) {
           return prevUsers;
         }
-        return [
+        const updated = [
           ...prevUsers,
           { id, userName: login, avatarUrl, name, login, location },
         ];
+        // Persistir após adicionar (até 50)
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem('recent_users', JSON.stringify(updated.slice(-50)));
+          }
+        } catch {}
+        return updated;
       });
     } catch {
       setModalMessage("Erro ao buscar os dados do usuário.");
@@ -229,6 +240,8 @@ const HomeContent: React.FC = () => {
     } finally {
       setSuggestions([]);
       setLoading(false);
+      // Limpa a barra de busca automaticamente após concluir a pesquisa
+      setUserName("");
       debugLog('search:done', { target });
     }
   };
@@ -244,12 +257,30 @@ const HomeContent: React.FC = () => {
 
   const handleRecentUserClick = async (user: RecentUser) => {
     debugLog('recent:click', { user: user.userName });
+    // Mesmo se já estiver no mesmo login, forçamos refresh limpando repositórios antes.
+    if (login === user.userName) {
+      setRepositories([]);
+      setPublicRepos(0);
+      setFollowers(0);
+      setFollowing(0);
+      setLocation("");
+      setId("");
+      setAvatarUrl(PLACEHOLDER_IMAGE);
+    }
+    // Preenche imediatamente o campo para feedback instantâneo
+    setUserName(user.userName);
     await handleSearch(user.userName);
   };
 
   const fetchSuggestions = async (q: string) => {
-    if (!q || q.length < 2) { setSuggestions([]); setIsSuggestLoading(false); return; }
-    const key = q.toLowerCase();
+    // Garantir que q é string
+    if (typeof q !== 'string') {
+      debugLog('suggestions:invalid-query-type', { qType: typeof q });
+      setSuggestions([]);
+      return;
+    }
+    if (!q || q.trim().length < 2) { setSuggestions([]); setIsSuggestLoading(false); return; }
+    const key = q.trim().toLowerCase();
     // histórico local (recent users) - priorizar início que bate
     const historyMatches = recentUsers
       .filter(u => u.userName.toLowerCase().startsWith(key))
@@ -263,15 +294,37 @@ const HomeContent: React.FC = () => {
       return;
     }
     setIsSuggestLoading(true);
+    // Cancelar requisição anterior
+    if (suggestionsAbort.current) {
+      suggestionsAbort.current.abort();
+    }
+    suggestionsAbort.current = new AbortController();
     try {
-      const resp = await fetch(`https://api.github.com/search/users?q=${encodeURIComponent(q)}&per_page=5`);
+      const resp = await fetch(`https://api.github.com/search/users?q=${encodeURIComponent(q)}&per_page=5`, { signal: suggestionsAbort.current.signal });
       if (!resp.ok) { setIsSuggestLoading(false); return; }
       const json = await resp.json();
-      const remote = (json.items || []).map((u: any) => ({ login: u.login, avatarUrl: u.avatar_url, source: 'remote' }));
+      const remote = Array.isArray(json.items)
+        ? json.items.map((u: any) => ({ login: u.login, avatarUrl: u.avatar_url, source: 'remote' }))
+        : [];
       suggestionCache.current.set(key, remote);
-  const merged = [...historyMatches, ...remote.filter((r: any) => !historyMatches.some((h: any) => h.login === r.login))];
-      setSuggestions(merged);
-    } catch {
+      // Ranking: 1) histórico prefixo (já feito), 2) remoto prefixo, 3) remoto contém, 4) histórico contém (não prefixo)
+      const lower = key;
+  const remotePrefix = remote.filter((r: any) => r.login.toLowerCase().startsWith(lower));
+  const remoteContain = remote.filter((r: any) => !r.login.toLowerCase().startsWith(lower) && r.login.toLowerCase().includes(lower));
+      const historyContain = recentUsers
+        .filter(u => !u.userName.toLowerCase().startsWith(lower) && u.userName.toLowerCase().includes(lower))
+        .map(u => ({ login: u.userName, avatarUrl: u.avatarUrl, source: 'history' }));
+      const merged = [
+        ...historyMatches, // já prefix
+  ...remotePrefix.filter((r: any) => !historyMatches.some(h => h.login === r.login)),
+        ...historyContain.filter(hc => !historyMatches.some(h => h.login === hc.login)),
+  ...remoteContain.filter((r: any) => !historyMatches.some(h => h.login === r.login) && !historyContain.some(hc => hc.login === r.login)),
+      ];
+      setSuggestions(merged.slice(0, 12));
+    } catch (err:any) {
+      if (err?.name === 'AbortError') {
+        debugLog('suggestions:aborted');
+      }
       // falha silenciosa
     } finally {
       setIsSuggestLoading(false);
@@ -280,9 +333,16 @@ const HomeContent: React.FC = () => {
 
   const handleChangeUserName = (text: string) => {
     setUserName(text);
-    if (suggestionTimer.current) clearTimeout(suggestionTimer.current);
-    suggestionTimer.current = setTimeout(() => fetchSuggestions(text), 300);
   };
+
+  // Efeito para buscar sugestões baseado no valor debounced
+  useEffect(() => {
+    if (!debouncedUserName) {
+      setSuggestions([]);
+      return;
+    }
+    fetchSuggestions(debouncedUserName);
+  }, [debouncedUserName]);
 
   const handlePickSuggestion = async (loginPicked: string) => {
     setSuggestions([]);
@@ -305,6 +365,17 @@ const HomeContent: React.FC = () => {
 
   useEffect(() => {
     const defaultUserName = "FelipeMTavaresS";
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = localStorage.getItem('recent_users');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setRecentUsers(parsed.slice(0,50));
+          }
+        }
+      }
+    } catch {}
     setUserName(defaultUserName);
     (async () => {
       await handleGetUserData(defaultUserName);
@@ -330,17 +401,7 @@ const HomeContent: React.FC = () => {
               shrink={shrink}
               isLoadingSuggestions={isSuggestLoading}
               onCloseSuggestions={handleCloseSuggestions}
-              recentUsers={recentUsers.map(u => ({ login: u.userName, avatarUrl: u.avatarUrl, name: u.name }))}
-              onPickRecentUser={(loginPicked) => {
-                const found = recentUsers.find(r => r.userName === loginPicked);
-                if (found) {
-                  setSuggestions([]);
-                  handleSearch(found.userName);
-                } else {
-                  setSuggestions([]);
-                  handleSearch(loginPicked);
-                }
-              }}
+              
             />
           </Section>
         );
@@ -367,12 +428,28 @@ const HomeContent: React.FC = () => {
                   id={id}
                 />
                 <UserStats followers={followers} publicRepos={publicRepos} />
+                {repositories.length > 0 && (
+                  <View style={{ marginTop: 6 }}>
+                    <Animated.Text style={{ fontSize: 12, opacity: 0.7 }}>
+                      {`Exibindo ${Math.min(repositories.length, 5 + (repoPage-1)*REPOS_PER_PAGE)} de ${publicRepos} repositórios`}
+                    </Animated.Text>
+                  </View>
+                )}
               </BoxContainer>
             )}
           </Section>
         );
       case 'recentUsers':
-        return null; // não usado mais – mantido para não quebrar FlatList/data
+        return (
+          <Section>
+            <RecentUsersMenu
+              recentUsers={recentUsers}
+              onUserClick={async (u: RecentUser) => {
+                await handleRecentUserClick(u);
+              }}
+            />
+          </Section>
+        );
       case 'repositoryList':
         return (
           <Section>
@@ -403,8 +480,8 @@ const HomeContent: React.FC = () => {
     { type: 'searchBar' },
     { type: 'searchResult' },
     { type: 'profile' },
+    { type: 'recentUsers' },
     { type: 'repositoryList' },
-  // { type: 'recentUsers' }, // removido da ordem visual
   ];
 
   return (

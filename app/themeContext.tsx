@@ -30,6 +30,27 @@ export const ThemeProviderCustom: React.FC<{children: ReactNode}> = ({ children 
     setMode(m => (m === 'dark' ? 'light' : 'dark'));
   };
 
+  // Carrega modo persistido
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = localStorage.getItem('app_theme_mode');
+        if (stored === 'light' || stored === 'dark') {
+          setMode(stored);
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Persiste mudanças
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('app_theme_mode', mode);
+      }
+    } catch {}
+  }, [mode]);
+
   useEffect(() => {
     if (prevMode) {
       anim.setValue(0);
