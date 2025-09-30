@@ -1,15 +1,15 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   Image, 
   NativeSyntheticEvent, 
   TextInputKeyPressEventData, 
   Platform, 
-  Animated,
-  View,
-  ActivityIndicator
+  Pressable, 
+  Animated
  } from 'react-native';
 import { useTheme } from 'styled-components/native';
 import {
+  SearchWrapper,
   InputContainer,
   StyledTextInput,
   SearchButton,
@@ -50,66 +50,84 @@ const SearchBarComponent: React.FC<SearchBarProps> = ({
   onPickSuggestion,
   shrink,
   isLoadingSuggestions,
-  onCloseSuggestions,
-  
+  onCloseSuggestions
 }) => {
   const theme = useTheme();
-  const [focused, setFocused] = React.useState(false);
-  
+
+  // Controle de animação de entrada/saída das sugestões
+  const isOpen = isLoadingSuggestions || suggestions.length > 0;
+  const [showBox, setShowBox] = useState(isOpen); // controla renderização evitando flicker
+  const opacityAnim = useRef(new Animated.Value(isOpen ? 1 : 0)).current;
+  const translateYAnim = useRef(new Animated.Value(isOpen ? 0 : -6)).current;
+
+  useEffect(() => {
+    if (isOpen) {
+      // Garante que esteja montado antes de animar
+      if (!showBox) setShowBox(true);
+      Animated.parallel([
+        Animated.timing(opacityAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+        Animated.timing(translateYAnim, { toValue: 0, duration: 180, useNativeDriver: true })
+      ]).start();
+    } else {
+      // Anima saída e desmonta no final para não capturar interação invisível
+      Animated.parallel([
+        Animated.timing(opacityAnim, { toValue: 0, duration: 130, useNativeDriver: true }),
+        Animated.timing(translateYAnim, { toValue: -6, duration: 130, useNativeDriver: true })
+      ]).start(({ finished }) => {
+        if (finished) setShowBox(false);
+      });
+    }
+  }, [isOpen]);
 
   const handleKeyPress = (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
     if (event.nativeEvent.key === 'Enter') onSearch();
   };
 
-  const scale = Animated.subtract(1, Animated.multiply(shrink, 0.25));
-  const showSuggestions = userName.length > 0 && (isLoadingSuggestions || suggestions.length > 0);
-
-  const handleTextChange = React.useCallback((text: string) => {
-    onChangeUserName(text);
-  }, [onChangeUserName]);
-
   return (
-    <View style={{ width: '100%' }}>
-      <SearchBarContainer style={{ transform: [{ scaleY: scale }] }}>
-  <InputContainer style={{ marginBottom: showSuggestions ? 0 : 24 }}>
+    <Pressable onPress={onCloseSuggestions} style={{ width: '100%' }}>
+      <SearchWrapper>
+        <InputContainer>
           <StyledTextInput
             value={userName}
-            onChangeText={handleTextChange}
+            onChangeText={onChangeUserName}
             placeholder="Buscar usuário do GitHub"
             placeholderTextColor={theme.colors.textSecondary}
-            returnKeyType="search"
+            {...(Platform.OS === 'web' ? {
+              id: 'github-user-search',
+              name: 'github-user-search',
+              enterKeyHint: 'search',
+              autoComplete: 'username',
+              'aria-label': 'Buscar usuário do GitHub'
+            } : { returnKeyType: 'search', accessibilityLabel: 'Campo de busca de usuário GitHub', nativeID: 'github-user-search' })}
             onSubmitEditing={onSearch}
             onKeyPress={Platform.OS === 'web' ? handleKeyPress : undefined}
-            onFocus={() => { setFocused(true); }}
-            onBlur={() => { setFocused(false); }}
-            accessibilityLabel="Campo de busca de usuário GitHub"
           />
           {userName.length > 0 && (
             <SearchClearButton
               onPress={(e) => { e.stopPropagation(); onClear(); }}
-              accessibilityRole="button"
-              accessibilityLabel="Limpar busca"
+              {...(Platform.OS === 'web' ? { role: 'button', 'aria-label': 'Limpar busca' } : { accessibilityRole: 'button', accessibilityLabel: 'Limpar busca' })}
             >
               <SearchClearText>X</SearchClearText>
             </SearchClearButton>
           )}
-          {isLoadingSuggestions && userName.length > 0 && (
-            <View style={{ position: 'absolute', right: 52, top: 8 }}>
-              <ActivityIndicator size={16 as any} color={theme.colors.accent} />
-            </View>
-          )}
           <SearchButton
             onPress={(e) => { e.stopPropagation(); onSearch(); }}
-            accessibilityRole="button"
-            accessibilityLabel="Buscar"
+            {...(Platform.OS === 'web' ? { role: 'button', 'aria-label': 'Buscar' } : { accessibilityRole: 'button', accessibilityLabel: 'Buscar' })}
           >
-            <SearchIconImg source={{ uri: LupaIcon }} resizeMode="contain" />
+            <SearchIconImg source={{ uri: LupaIcon }} resizeMode="contain" tintColor={theme.colors.textPrimary} />
           </SearchButton>
         </InputContainer>
 
-        {showSuggestions && (
-          <SearchSuggestionsBox style={{ opacity: showSuggestions ? 1 : 0 }}>
-            <Animated.ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
+        {showBox && (
+          <SearchSuggestionsBox
+            style={{
+              opacity: opacityAnim,
+              transform: [{ translateY: translateYAnim }]
+            }}
+            // Evita capturar toques quando invisível durante animação de saída
+            pointerEvents={isOpen ? 'auto' : 'none'}
+          >
+            <Animated.ScrollView style={{ maxHeight: 240 }} keyboardShouldPersistTaps="handled">
               {isLoadingSuggestions && (
                 <>
                   {[1, 2, 3].map(i => (
@@ -126,7 +144,7 @@ const SearchBarComponent: React.FC<SearchBarProps> = ({
                 const idx = loginLower.indexOf(q);
                 if (idx === -1) {
                   return (
-                    <SearchSuggestionRow key={s.login} onPress={() => { onPickSuggestion(s.login); }}>
+                    <SearchSuggestionRow key={s.login} onPress={(e) => { e.stopPropagation(); onPickSuggestion(s.login); }}>
                       <SearchSuggestionAvatar source={{ uri: s.avatarUrl }} />
                       <SearchSuggestionLogin>{s.login}</SearchSuggestionLogin>
                     </SearchSuggestionRow>
@@ -136,7 +154,7 @@ const SearchBarComponent: React.FC<SearchBarProps> = ({
                 const match = s.login.slice(idx, idx + userName.length);
                 const end = s.login.slice(idx + userName.length);
                 return (
-                  <SearchSuggestionRow key={s.login} onPress={() => { onPickSuggestion(s.login); }}>
+                  <SearchSuggestionRow key={s.login} onPress={(e) => { e.stopPropagation(); onPickSuggestion(s.login); }}>
                     <SearchSuggestionAvatar source={{ uri: s.avatarUrl }} />
                     <SearchSuggestionLogin>
                       {start}<SearchSuggestionHighlight>{match}</SearchSuggestionHighlight>{end}
@@ -144,16 +162,11 @@ const SearchBarComponent: React.FC<SearchBarProps> = ({
                   </SearchSuggestionRow>
                 );
               })}
-              {!isLoadingSuggestions && userName.length > 0 && suggestions.length === 0 && (
-                <SearchSuggestionRow>
-                  <SearchSuggestionLogin style={{ opacity: 0.7 }}>Sem resultados</SearchSuggestionLogin>
-                </SearchSuggestionRow>
-              )}
             </Animated.ScrollView>
           </SearchSuggestionsBox>
         )}
-      </SearchBarContainer>
-    </View>
+      </SearchWrapper>
+    </Pressable>
   );
 };
 

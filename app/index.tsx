@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { TouchableOpacity, FlatList, ListRenderItem, ActivityIndicator, View, useWindowDimensions, Animated, Platform } from "react-native";
+import { FlatList, ListRenderItem, ActivityIndicator, View, useWindowDimensions, Animated, Platform } from "react-native";
 import { ThemeProviderCustom, useAppTheme } from './themeContext';
-// RecentUsers integrados na SearchBar agora
+import RecentUsersMenu from "./components/RecentUsersMenu";
 import RepositoryList from "./components/RepositoryList";
 import {
   Backgroud,
@@ -19,22 +19,17 @@ import {
 import SearchResultsMenu from "./components/SearchResultsMenu";
 
 import SearchBarComponent from "./components/searchbarcomponent";
-import RecentUsersMenu from "./components/RecentUsersMenu";
 import { Image } from 'react-native';
 import UserData from "./components/userdata";
 import UserStats from "./components/userstats";
 import Modal from "./components/modal";
 import { RecentUser, Repository } from "./components/types";
-import { useDebouncedValue } from './hooks/useDebouncedValue';
 import { darkTheme } from './theme';
 import { ProfileSkeleton, RepoListSkeleton } from './components/Skeleton';
 
 const PLACEHOLDER_IMAGE =
   "https://img.icons8.com/pulsar-color/192/test-account.png";
 const ENDPOINT = "https://api.github.com/users/";
-// ===== Debug =====
-const DEBUG = true;
-const debugLog = (...args: any[]) => { if (DEBUG) console.log('[DEBUG]', ...args); };
 
 // Logos locais (assets)
 const LOGO_LIGHT = require('../assets/logo/github-mark.png');
@@ -44,6 +39,11 @@ const HomeContent: React.FC = () => {
   const { width } = useWindowDimensions();
   const isWide = width >= 1000; // breakpoint para layout em colunas
   const { mode } = useAppTheme();
+  const logoAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    logoAnim.setValue(0.4);
+    Animated.spring(logoAnim, { toValue: 1, useNativeDriver: true, friction: 6, tension: 120 }).start();
+  }, [mode]);
   const [userName, setUserName] = useState<string>("");
   const [login, setLogin] = useState<string>("");
   const [name, setName] = useState<string>("");
@@ -66,12 +66,13 @@ const HomeContent: React.FC = () => {
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [isSuggestLoading, setIsSuggestLoading] = useState(false);
-  // Valor debounced do texto de busca para sugestões (apenas para suggestions, não para busca principal que é manual)
-  const debouncedUserName = useDebouncedValue(userName, 320);
+  const suggestionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
   const shrink = scrollY.interpolate({ inputRange: [0, 120], outputRange: [0, 1], extrapolate: 'clamp' });
+  useEffect(() => {
+    scrollY.setValue(0);
+  }, [isWide, Platform.OS]);
   const suggestionCache = useRef<Map<string, any[]>>(new Map());
-  const suggestionsAbort = useRef<AbortController | null>(null);
   const REPOS_PER_PAGE = 10; // Carregar 10 por clique
 
   const handleGetUserData = async (userName: string) => {
@@ -82,18 +83,14 @@ const HomeContent: React.FC = () => {
     }
     try {
       setLoading(true);
-      debugLog('handleGetUserData:start', { userName });
       const response = await fetch(`${ENDPOINT}${userName}`);
-      debugLog('handleGetUserData:response', { status: response.status, url: response.url });
       if (!response.ok) {
         setModalMessage("Erro ao buscar os dados do usuário.");
         setModalVisible(true);
         setLoading(false);
-        debugLog('handleGetUserData:failed', { userName, status: response.status });
         return;
       }
       const data = await response.json();
-      debugLog('handleGetUserData:parsed', { login: data.login, public_repos: data.public_repos });
       const {
         login,
         name,
@@ -116,24 +113,16 @@ const HomeContent: React.FC = () => {
         if (prevUsers.some(user => user.userName === login)) {
           return prevUsers;
         }
-        const updated = [
+        return [
           ...prevUsers,
           { id, userName: login, avatarUrl, name, login, location },
         ];
-        // Persistir após adicionar (até 50)
-        try {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            localStorage.setItem('recent_users', JSON.stringify(updated.slice(-50)));
-          }
-        } catch {}
-        return updated;
       });
     } catch {
       setModalMessage("Erro ao buscar os dados do usuário.");
       setModalVisible(true);
     } finally {
       setLoading(false);
-      debugLog('handleGetUserData:done', { userName });
     }
   };
 
@@ -145,15 +134,11 @@ const HomeContent: React.FC = () => {
     }
 
     try {
-      debugLog('repos:start', { userName, page, append });
       if (publicRepos && page > Math.ceil(publicRepos / REPOS_PER_PAGE)) {
-        debugLog('repos:exceeds-total-pages', { userName, page });
         setHasMoreRepos(false);
         return;
       }
-      const url = `${ENDPOINT}${userName}/repos?per_page=${REPOS_PER_PAGE}&page=${page}&sort=updated`;
-      const response = await fetch(url);
-      debugLog('repos:response', { status: response.status, url });
+      const response = await fetch(`${ENDPOINT}${userName}/repos?per_page=${REPOS_PER_PAGE}&page=${page}&sort=updated`);
       if (!response.ok) {
         if (response.status === 403) {
           const remaining = response.headers.get('X-RateLimit-Remaining');
@@ -162,20 +147,16 @@ const HomeContent: React.FC = () => {
             const resetDate = new Date(parseInt(reset, 10) * 1000);
             const minutes = Math.max(1, Math.ceil((resetDate.getTime() - Date.now()) / 60000));
             setModalMessage(`Limite da API do GitHub atingido. Tente novamente em ~${minutes} min.`);
-            debugLog('repos:rate-limit', { remaining, reset: resetDate.toISOString(), minutes });
           } else {
             setModalMessage("Acesso negado pela API (403). Aguarde e tente novamente.");
-            debugLog('repos:403-other');
           }
         } else {
           setModalMessage("Erro ao buscar os dados do usuário.");
-          debugLog('repos:non-ok', { status: response.status });
         }
         setModalVisible(true);
         return;
       }
       const data = await response.json();
-      debugLog('repos:raw-length', { length: data.length });
       const repos = data.map((repo: any) => ({
         name: repo.name,
         description: repo.description,
@@ -185,7 +166,6 @@ const HomeContent: React.FC = () => {
         html_url: repo.html_url,
       }));
       if (repos.length === 0) {
-        debugLog('repos:empty-page', { userName, page });
         setHasMoreRepos(false);
         return;
       }
@@ -199,50 +179,31 @@ const HomeContent: React.FC = () => {
             dedup.push(r);
           }
         }
-        debugLog('repos:merged', { prevLen: prev.length, added: repos.length, finalLen: dedup.length, append });
         return dedup;
       });
       const linkHeader = response.headers.get('link');
       if (repos.length < REPOS_PER_PAGE || !linkHeader || !/rel="next"/.test(linkHeader)) {
         setHasMoreRepos(false);
-        debugLog('repos:no-more', { userName, page });
       } else {
         setHasMoreRepos(true);
-        debugLog('repos:more-available', { userName, page });
       }
-    } catch (err) {
-      debugLog('repos:error', { userName, page, err });
+    } catch {
       setModalMessage("Erro ao buscar os dados dos repositórios.");
       setModalVisible(true);
     }
   };
 
-  const handleSearch = async (override?: string) => {
-    const target = override ?? userName;
-    if (!target) return;
-    debugLog('search:start', { target, override });
+  const handleSearch = async () => {
+    if (!userName) return;
     setLoading(true);
-    setRepositories([]);
-    setPublicRepos(0);
-    setFollowers(0);
-    setFollowing(0);
-    setLocation("");
-    setId("");
-    setAvatarUrl(PLACEHOLDER_IMAGE);
     try {
-      if (override) setUserName(override);
-      await handleGetUserData(target);
+      await handleGetUserData(userName);
       setRepoPage(1);
       setHasMoreRepos(true);
-      await handleGetUserRepositoryData(target, 1, false);
-    } catch (err) {
-      debugLog('search:error', { target, err });
+      await handleGetUserRepositoryData(userName, 1, false);
     } finally {
       setSuggestions([]);
       setLoading(false);
-      // Limpa a barra de busca automaticamente após concluir a pesquisa
-      setUserName("");
-      debugLog('search:done', { target });
     }
   };
 
@@ -256,32 +217,14 @@ const HomeContent: React.FC = () => {
   };
 
   const handleRecentUserClick = async (user: RecentUser) => {
-    debugLog('recent:click', { user: user.userName });
-    // Mesmo se já estiver no mesmo login, forçamos refresh limpando repositórios antes.
-    if (login === user.userName) {
-      setRepositories([]);
-      setPublicRepos(0);
-      setFollowers(0);
-      setFollowing(0);
-      setLocation("");
-      setId("");
-      setAvatarUrl(PLACEHOLDER_IMAGE);
-    }
-    // Preenche imediatamente o campo para feedback instantâneo
     setUserName(user.userName);
-    await handleSearch(user.userName);
+    await handleGetUserData(user.userName);
+    await handleGetUserRepositoryData(user.userName);
   };
 
   const fetchSuggestions = async (q: string) => {
-    // Garantir que q é string
-    if (typeof q !== 'string') {
-      debugLog('suggestions:invalid-query-type', { qType: typeof q });
-      setSuggestions([]);
-      return;
-    }
-    if (!q || q.trim().length < 2) { setSuggestions([]); setIsSuggestLoading(false); return; }
-    const key = q.trim().toLowerCase();
-    // histórico local (recent users) - priorizar início que bate
+    if (!q || q.length < 2) { setSuggestions([]); setIsSuggestLoading(false); return; }
+    const key = q.toLowerCase();
     const historyMatches = recentUsers
       .filter(u => u.userName.toLowerCase().startsWith(key))
       .map(u => ({ login: u.userName, avatarUrl: u.avatarUrl, source: 'history' }));
@@ -294,38 +237,15 @@ const HomeContent: React.FC = () => {
       return;
     }
     setIsSuggestLoading(true);
-    // Cancelar requisição anterior
-    if (suggestionsAbort.current) {
-      suggestionsAbort.current.abort();
-    }
-    suggestionsAbort.current = new AbortController();
     try {
-      const resp = await fetch(`https://api.github.com/search/users?q=${encodeURIComponent(q)}&per_page=5`, { signal: suggestionsAbort.current.signal });
+      const resp = await fetch(`https://api.github.com/search/users?q=${encodeURIComponent(q)}&per_page=5`);
       if (!resp.ok) { setIsSuggestLoading(false); return; }
       const json = await resp.json();
-      const remote = Array.isArray(json.items)
-        ? json.items.map((u: any) => ({ login: u.login, avatarUrl: u.avatar_url, source: 'remote' }))
-        : [];
+      const remote = (json.items || []).map((u: any) => ({ login: u.login, avatarUrl: u.avatar_url, source: 'remote' }));
       suggestionCache.current.set(key, remote);
-      // Ranking: 1) histórico prefixo (já feito), 2) remoto prefixo, 3) remoto contém, 4) histórico contém (não prefixo)
-      const lower = key;
-  const remotePrefix = remote.filter((r: any) => r.login.toLowerCase().startsWith(lower));
-  const remoteContain = remote.filter((r: any) => !r.login.toLowerCase().startsWith(lower) && r.login.toLowerCase().includes(lower));
-      const historyContain = recentUsers
-        .filter(u => !u.userName.toLowerCase().startsWith(lower) && u.userName.toLowerCase().includes(lower))
-        .map(u => ({ login: u.userName, avatarUrl: u.avatarUrl, source: 'history' }));
-      const merged = [
-        ...historyMatches, // já prefix
-  ...remotePrefix.filter((r: any) => !historyMatches.some(h => h.login === r.login)),
-        ...historyContain.filter(hc => !historyMatches.some(h => h.login === hc.login)),
-  ...remoteContain.filter((r: any) => !historyMatches.some(h => h.login === r.login) && !historyContain.some(hc => hc.login === r.login)),
-      ];
-      setSuggestions(merged.slice(0, 12));
-    } catch (err:any) {
-      if (err?.name === 'AbortError') {
-        debugLog('suggestions:aborted');
-      }
-      // falha silenciosa
+  const merged = [...historyMatches, ...remote.filter((r: any) => !historyMatches.some((h: any) => h.login === r.login))];
+      setSuggestions(merged);
+    } catch {
     } finally {
       setIsSuggestLoading(false);
     }
@@ -333,21 +253,14 @@ const HomeContent: React.FC = () => {
 
   const handleChangeUserName = (text: string) => {
     setUserName(text);
+    if (suggestionTimer.current) clearTimeout(suggestionTimer.current);
+    suggestionTimer.current = setTimeout(() => fetchSuggestions(text), 300);
   };
 
-  // Efeito para buscar sugestões baseado no valor debounced
-  useEffect(() => {
-    if (!debouncedUserName) {
-      setSuggestions([]);
-      return;
-    }
-    fetchSuggestions(debouncedUserName);
-  }, [debouncedUserName]);
-
   const handlePickSuggestion = async (loginPicked: string) => {
+    setUserName(loginPicked);
     setSuggestions([]);
-    debugLog('suggestion:pick', { loginPicked });
-    await handleSearch(loginPicked);
+    await handleSearch();
   };
 
   const handleClear = () => {
@@ -365,17 +278,6 @@ const HomeContent: React.FC = () => {
 
   useEffect(() => {
     const defaultUserName = "FelipeMTavaresS";
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = localStorage.getItem('recent_users');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed)) {
-            setRecentUsers(parsed.slice(0,50));
-          }
-        }
-      }
-    } catch {}
     setUserName(defaultUserName);
     (async () => {
       await handleGetUserData(defaultUserName);
@@ -401,7 +303,6 @@ const HomeContent: React.FC = () => {
               shrink={shrink}
               isLoadingSuggestions={isSuggestLoading}
               onCloseSuggestions={handleCloseSuggestions}
-              
             />
           </Section>
         );
@@ -428,13 +329,6 @@ const HomeContent: React.FC = () => {
                   id={id}
                 />
                 <UserStats followers={followers} publicRepos={publicRepos} />
-                {repositories.length > 0 && (
-                  <View style={{ marginTop: 6 }}>
-                    <Animated.Text style={{ fontSize: 12, opacity: 0.7 }}>
-                      {`Exibindo ${Math.min(repositories.length, 5 + (repoPage-1)*REPOS_PER_PAGE)} de ${publicRepos} repositórios`}
-                    </Animated.Text>
-                  </View>
-                )}
               </BoxContainer>
             )}
           </Section>
@@ -442,12 +336,10 @@ const HomeContent: React.FC = () => {
       case 'recentUsers':
         return (
           <Section>
-            <RecentUsersMenu
-              recentUsers={recentUsers}
-              onUserClick={async (u: RecentUser) => {
-                await handleRecentUserClick(u);
-              }}
-            />
+          <RecentUsersMenu
+            recentUsers={recentUsers}
+            onUserClick={handleRecentUserClick}
+          />
           </Section>
         );
       case 'repositoryList':
@@ -480,31 +372,36 @@ const HomeContent: React.FC = () => {
     { type: 'searchBar' },
     { type: 'searchResult' },
     { type: 'profile' },
-    { type: 'recentUsers' },
     { type: 'repositoryList' },
+    { type: 'recentUsers' },
   ];
 
   return (
       <Backgroud>
         <Animated.View
-          style={{
-            width: '100%',
-            backgroundColor: darkTheme.colors.surface, // será sobrescrito pelo ThemeProvider nos filhos
-            shadowColor: '#000',
-            shadowOpacity: scrollY.interpolate({ inputRange: [0, 40], outputRange: [0, 0.25], extrapolate: 'clamp' }),
-            shadowRadius: scrollY.interpolate({ inputRange: [0, 60], outputRange: [0, 10], extrapolate: 'clamp' }),
-            shadowOffset: { width: 0, height: 2 },
-            elevation: scrollY.interpolate({ inputRange: [0, 50], outputRange: [0, 8], extrapolate: 'clamp' }),
-            zIndex: 10
-          }}
+          style={[
+            {
+              width: '100%',
+              backgroundColor: darkTheme.colors.surface,
+              elevation: scrollY.interpolate({ inputRange: [0, 50], outputRange: [0, 8], extrapolate: 'clamp' }),
+              zIndex: 10
+            },
+            Platform.OS === 'web' ? {} : {
+              shadowColor: '#000',
+              shadowOpacity: scrollY.interpolate({ inputRange: [0, 40], outputRange: [0, 0.25], extrapolate: 'clamp' }),
+              shadowRadius: scrollY.interpolate({ inputRange: [0, 60], outputRange: [0, 10], extrapolate: 'clamp' }),
+              shadowOffset: { width: 0, height: 2 }
+            }
+          ]}
         >
           <TopBar>
             <TopBarRow>
               <TopBarLeft>
-                <Image
+                <Animated.Image
                   source={mode === 'dark' ? LOGO_DARK : LOGO_LIGHT}
-                  style={{ width: 34, height: 34, resizeMode: 'contain' }}
-                  accessibilityLabel="GitHub Logo"
+                  resizeMode="contain"
+                  style={{ width: 34, height: 34, opacity: logoAnim, transform: [{ scale: logoAnim }] }}
+                  {...(Platform.OS === 'web' ? { 'aria-label': 'GitHub Logo', role: 'img' } : { accessibilityLabel: 'GitHub Logo' })}
                 />
                 <TopBarTitle>GitHub Search</TopBarTitle>
               </TopBarLeft>
@@ -580,7 +477,12 @@ const Home: React.FC = () => (
 const ThemeConsumerToggle: React.FC = () => {
   const { mode, toggle } = useAppTheme();
   return (
-    <ThemeToggleBtn onPress={toggle} accessibilityRole="button" accessibilityLabel="Alternar tema claro/escuro">
+    <ThemeToggleBtn
+      onPress={toggle}
+      {...(Platform.OS === 'web'
+        ? { role: 'button', 'aria-label': 'Alternar tema claro/escuro' }
+        : { accessibilityRole: 'button', accessibilityLabel: 'Alternar tema claro/escuro' })}
+    >
       <ThemeToggleText>{mode === 'dark' ? '🌙' : '☀️'}</ThemeToggleText>
     </ThemeToggleBtn>
   );

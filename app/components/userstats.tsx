@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, useWindowDimensions } from "react-native";
+import { Animated, useWindowDimensions, Platform } from "react-native";
 import {
   BoxContainerStats,
   StatItem,
@@ -59,15 +59,18 @@ const UserStats: React.FC<UserStatsProps> = ({ followers, publicRepos }) => {
   }, [publicRepos]);
 
   return (
-    <BoxContainerStats $stack={stack} accessibilityRole="summary">
-      <StatItem accessibilityLabel={`Seguidores: ${followers}`}>
+    <BoxContainerStats
+      $stack={stack}
+      {...(Platform.OS === 'web' ? { role: 'group', 'aria-label': 'Estatísticas do usuário' } : { accessibilityRole: 'summary', accessibilityLabel: 'Estatísticas do usuário' })}
+    >
+  <StatItem {...(Platform.OS === 'web' ? { 'aria-label': `Seguidores: ${followers}` } : { accessibilityLabel: `Seguidores: ${followers}` })}>
         <StatValue>
           {formatNumber(followersDisplay)}
         </StatValue>
         <StatLabel>Seguidores</StatLabel>
       </StatItem>
       {!stack && <StatDivider />}
-      <StatItem accessibilityLabel={`Repositórios públicos: ${publicRepos}`}>
+  <StatItem {...(Platform.OS === 'web' ? { 'aria-label': `Repositórios públicos: ${publicRepos}` } : { accessibilityLabel: `Repositórios públicos: ${publicRepos}` })}>
         <StatValue>
           {formatNumber(reposDisplay)}
         </StatValue>

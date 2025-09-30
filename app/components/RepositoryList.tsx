@@ -91,9 +91,10 @@ const RepositoryList: React.FC<RepositoryListProps> = ({ repositories, publicRep
         <Animated.View style={{ opacity: loadingOpacity }}>
           <RepositoryListShowMoreButton
             onPress={isLoadingMore ? undefined : handlePress}
-            accessibilityRole="button"
-            accessibilityLabel={isLoadingMore ? 'Carregando' : 'Mostrar mais repositórios'}
             disabled={isLoadingMore}
+            {...(Platform.OS === 'web'
+              ? { role: 'button', 'aria-label': isLoadingMore ? 'Carregando' : 'Mostrar mais repositórios', 'aria-busy': isLoadingMore }
+              : { accessibilityRole: 'button', accessibilityLabel: isLoadingMore ? 'Carregando' : 'Mostrar mais repositórios' })}
           >
             <RepositoryListShowMoreText>
               {isLoadingMore ? 'Mostrar mais...' : 'Mostrar mais'}

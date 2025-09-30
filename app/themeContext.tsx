@@ -20,53 +20,48 @@ export const useAppTheme = () => {
 export const ThemeProviderCustom: React.FC<{children: ReactNode}> = ({ children }) => {
   const [mode, setMode] = useState<'light' | 'dark'>('dark');
   const [prevMode, setPrevMode] = useState<'light' | 'dark' | null>(null);
-  const anim = useRef(new Animated.Value(1)).current; // 0 => cor antiga, 1 => cor atual
+  const anim = useRef(new Animated.Value(1)).current; // usado apenas no mobile para cross-fade de background
 
   const theme = useMemo(() => (mode === 'dark' ? darkTheme : lightTheme), [mode]);
   const fromTheme = useMemo(() => (prevMode ? (prevMode === 'dark' ? darkTheme : lightTheme) : theme), [prevMode, mode]);
 
   const toggle = () => {
+    const next = mode === 'dark' ? 'light' : 'dark';
     setPrevMode(mode);
-    setMode(m => (m === 'dark' ? 'light' : 'dark'));
+    setMode(next);
+    try { if (Platform.OS === 'web') localStorage.setItem('appThemeMode', next); } catch {}
   };
 
-  // Carrega modo persistido
+  // Carrega preferência persistida
   useEffect(() => {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = localStorage.getItem('app_theme_mode');
-        if (stored === 'light' || stored === 'dark') {
+    if (Platform.OS === 'web') {
+      try {
+        const stored = localStorage.getItem('appThemeMode');
+        if (stored === 'dark' || stored === 'light') {
           setMode(stored);
         }
-      }
-    } catch {}
+      } catch {}
+    }
   }, []);
 
-  // Persiste mudanças
   useEffect(() => {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem('app_theme_mode', mode);
-      }
-    } catch {}
-  }, [mode]);
-
-  useEffect(() => {
-    if (prevMode) {
+    if (!prevMode) return;
+    if (Platform.OS !== 'web') {
       anim.setValue(0);
       Animated.timing(anim, {
         toValue: 1,
-        duration: 420,
+        duration: 280,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false
-      }).start(() => {
-        setPrevMode(null);
-      });
+      }).start(() => setPrevMode(null));
+    } else {
+      // Web usa apenas transições CSS já injetadas; limpa prevMode imediatamente
+      setPrevMode(null);
     }
-  }, [mode]);
+  }, [mode, prevMode]);
 
   // Interpola apenas background principal; demais cores terão transição por CSS (web)
-  const backgroundColor = anim.interpolate({
+  const backgroundColor = Platform.OS === 'web' ? theme.colors.background : anim.interpolate({
     inputRange: [0, 1],
     outputRange: [fromTheme.colors.background, theme.colors.background]
   });

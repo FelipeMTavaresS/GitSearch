@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import {
   ModalOverlay,
   ModalCard,
@@ -17,13 +18,12 @@ const Modal: React.FC<ModalProps> = ({ visible, onClose, message }) => {
   if (!visible) return null;
 
   return (
-    <ModalOverlay accessibilityRole="alert">
+    <ModalOverlay {...(Platform.OS === 'web' ? { role: 'alert', 'aria-live': 'assertive' } : { accessibilityRole: 'alert' })}>
       <ModalCard>
         <ModalMessageText>{message}</ModalMessageText>
         <ModalButton
           onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Fechar mensagem"
+          {...(Platform.OS === 'web' ? { role: 'button', 'aria-label': 'Fechar mensagem' } : { accessibilityRole: 'button', accessibilityLabel: 'Fechar mensagem' })}
         >
           <ModalButtonText>Fechar</ModalButtonText>
         </ModalButton>

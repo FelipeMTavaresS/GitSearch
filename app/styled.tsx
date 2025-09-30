@@ -161,18 +161,23 @@ export const HorizontalLine = styled.View`
   margin-right: 5px;
 `;
 
+export const SearchWrapper = styled.View`
+  width: 100%;
+  border: 1px solid ${({theme}) => theme.colors.border};
+  border-radius: 26px;
+  background-color: ${({theme}) => theme.colors.surfaceAlt};
+  overflow: hidden;
+  margin-bottom: ${({theme}) => theme.spacing.xl}px;
+`;
+
 export const InputContainer = styled.View`
   flex-direction: row;
   align-items: center;
   height: 52px;
   width: 100%;
-  border-radius: ${({theme}) => theme.radius.full}px;
-  border: 1px solid ${({theme}) => theme.colors.border};
-  background-color: ${({theme}) => theme.colors.surfaceAlt};
   padding-left: ${({theme}) => theme.spacing.lg}px;
   padding-right: ${({theme}) => theme.spacing.sm}px;
   gap: ${({theme}) => theme.spacing.sm}px;
-  margin-bottom: 0px;
 `;
 
 export const StyledTextInput = styled.TextInput`
@@ -181,7 +186,7 @@ export const StyledTextInput = styled.TextInput`
   color: ${({theme}) => theme.colors.textPrimary};
 `;
 
-export const SearchButton = styled.TouchableOpacity`
+export const SearchButton = styled.Pressable`
   width: 42px;
   height: 42px;
   border-radius: 21px;
@@ -260,7 +265,7 @@ export const TopBar = styled.View`
   background-color: ${({theme}) => theme.colors.surface};
 `;
 
-export const ThemeToggleBtn = styled.TouchableOpacity`
+export const ThemeToggleBtn = styled.Pressable`
   padding: 10px 14px;
   border-radius: 24px;
   background-color: ${({theme}) => theme.colors.surface};
@@ -333,7 +338,7 @@ export const RepositoryListCount = styled.Text`
   color: ${({ theme }) => theme.colors.textSecondary};
 `;
 
-export const RepositoryListShowMoreButton = styled.TouchableOpacity`
+export const RepositoryListShowMoreButton = styled.Pressable`
   margin-top: ${({theme}) => theme.spacing.sm}px;
   padding: 8px 14px;
   align-self: flex-start;
@@ -416,16 +421,9 @@ export const SearchBarContainer = styled(Animated.View)`
   width: 100%;
 `;
 
-const IconImg = styled.Image`
-  width: 20px;
-  height: 20px;
-  tint-color: #fff;
-`;
-
 export const SearchIconImg = styled.Image`
   width: 20px;
   height: 20px;
-  tint-color: #fff;
 `;
 
 const ClearButton = styled.Pressable`
@@ -472,21 +470,13 @@ const SuggestionsBox = styled(Animated.View)`
 `;
 
 export const SearchSuggestionsBox = styled(Animated.View)`
-  /* Cola diretamente no input removendo qualquer gap vertical */
-  margin-top: -4px;
   background-color: ${({theme}) => theme.colors.surfaceAlt};
-  border: 1px solid ${({theme}) => theme.colors.border};
-  border-top-width: 0; /* unir com a borda inferior do input container */
-  padding: 6px 10px 10px 10px;
-  border-bottom-left-radius: ${({theme}) => theme.radius.lg}px;
-  border-bottom-right-radius: ${({theme}) => theme.radius.lg}px;
+  border-top-width: 1px;
+  border-top-color: ${({theme}) => theme.colors.border};
+  padding: 8px 10px 10px 10px;
   gap: 6px;
-  max-height: 320px;
+  max-height: 260px;
   overflow: hidden;
-  shadow-color: #000;
-  shadow-opacity: 0.10;
-  shadow-radius: 12px;
-  elevation: 4;
 `;
 
 const SuggestionRow = styled.Pressable`
@@ -595,7 +585,7 @@ export const ModalMessageText = styled.Text`
   color: ${({theme}) => theme.colors.textPrimary};
 `;
 
-export const ModalButton = styled.TouchableOpacity`
+export const ModalButton = styled.Pressable`
   background-color: ${({theme}) => theme.colors.accent};
   padding: ${({theme}) => theme.spacing.sm}px ${({theme}) => theme.spacing.lg}px;
   border-radius: ${({theme}) => theme.radius.full}px;

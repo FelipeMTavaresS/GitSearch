@@ -1,5 +1,5 @@
 import React from "react";
-import { View, FlatList, TouchableOpacity, useWindowDimensions } from "react-native";
+import { View, FlatList, Pressable, useWindowDimensions } from "react-native";
 import { RecentUser } from "./types";
 import {
   RecentUserAvatar,
@@ -42,9 +42,9 @@ const RecentUsersMenu: React.FC<RecentUsersMenuProps> = ({
                 showsVerticalScrollIndicator={false}
                 renderItem={({ item }) => (
                   <RecentUserItem>
-                    <TouchableOpacity onPress={() => onUserClick(item)}>
+                    <Pressable onPress={() => onUserClick(item)}>
                       <RecentUserAvatar source={{ uri: item.avatarUrl }} />
-                    </TouchableOpacity>
+                    </Pressable>
                     <View>
                       <RecentUserName numberOfLines={1}>{item.name || item.login}</RecentUserName>
                       <RecentUserSecondary numberOfLines={1}>{item.login}</RecentUserSecondary>
